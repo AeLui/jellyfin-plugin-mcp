@@ -1,0 +1,106 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using Jellyfin.Plugin.Mcp.Mcp;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
+
+namespace Jellyfin.Plugin.Mcp.Tools;
+
+/// <summary>
+/// Maps Jellyfin items to the compact shapes returned by tools. Null fields are omitted.
+/// </summary>
+public static class ItemMapper
+{
+    /// <summary>
+    /// Maps an item to its summary shape.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="data">The user's data for the item, if any.</param>
+    /// <returns>The summary.</returns>
+    public static object Summary(BaseItem item, UserItemData? data)
+        => BuildSummary(item, data);
+
+    /// <summary>
+    /// Maps an item to its detailed shape.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="data">The user's data for the item, if any.</param>
+    /// <param name="people">The people attached to the item.</param>
+    /// <returns>The detail.</returns>
+    public static object Detail(BaseItem item, UserItemData? data, IReadOnlyList<PersonInfo> people)
+    {
+        ArgumentNullException.ThrowIfNull(people);
+        var result = BuildSummary(item, data);
+        Add(result, "overview", string.IsNullOrWhiteSpace(item.Overview) ? null : item.Overview);
+        Add(result, "genres", NonEmpty(item.Genres));
+        Add(result, "studios", NonEmpty(item.Studios));
+        Add(result, "tags", NonEmpty(item.Tags));
+        Add(result, "premiereDate", item.PremiereDate?.ToString("O", CultureInfo.InvariantCulture));
+        Add(result, "criticRating", item.CriticRating);
+        if (people.Count > 0)
+        {
+            Add(
+                result,
+                "people",
+                people.Select(p =>
+                {
+                    var person = new Dictionary<string, object>();
+                    Add(person, "name", p.Name);
+                    Add(person, "role", string.IsNullOrEmpty(p.Role) ? null : p.Role);
+                    Add(person, "type", p.Type.ToString());
+                    Add(person, "id", p.Id == Guid.Empty ? null : p.Id.ToString("N", CultureInfo.InvariantCulture));
+                    return person;
+                }).ToList());
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, object> BuildSummary(BaseItem item, UserItemData? data)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var result = new Dictionary<string, object>();
+        Add(result, "id", item.Id.ToString("N", CultureInfo.InvariantCulture));
+        Add(result, "name", item.Name);
+        Add(result, "type", SnakeCase.From(item.GetBaseItemKind().ToString()));
+        Add(result, "year", item.ProductionYear);
+        Add(result, "seriesName", SeriesName(item));
+        Add(result, "seasonNumber", item.ParentIndexNumber);
+        Add(result, "episodeNumber", item.IndexNumber);
+        Add(result, "runtimeMinutes", Minutes(item.RunTimeTicks));
+        Add(result, "communityRating", item.CommunityRating);
+        Add(result, "officialRating", string.IsNullOrEmpty(item.OfficialRating) ? null : item.OfficialRating);
+        if (data is not null)
+        {
+            Add(result, "played", data.Played);
+            Add(result, "favorite", data.IsFavorite);
+            Add(result, "playbackPositionMinutes", data.PlaybackPositionTicks > 0 ? Minutes(data.PlaybackPositionTicks) : null);
+        }
+
+        return result;
+    }
+
+    private static string? SeriesName(BaseItem item)
+        => item switch
+        {
+            Episode episode => episode.SeriesName,
+            Season season => season.SeriesName,
+            _ => null,
+        };
+
+    private static double? Minutes(long? ticks)
+        => ticks is null ? null : Math.Round((double)ticks.Value / TimeSpan.TicksPerMinute, 1);
+
+    private static string[]? NonEmpty(string[]? values)
+        => values is { Length: > 0 } ? values : null;
+
+    private static void Add(Dictionary<string, object> target, string key, object? value)
+    {
+        if (value is not null)
+        {
+            target[key] = value;
+        }
+    }
+}

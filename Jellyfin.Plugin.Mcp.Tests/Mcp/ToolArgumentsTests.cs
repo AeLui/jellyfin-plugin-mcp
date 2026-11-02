@@ -128,4 +128,22 @@ public class ToolArgumentsTests
         Assert.Contains("'type'", ex.Message, StringComparison.Ordinal);
         Assert.Null(Args("{}").GetEnum<Sample>("type"));
     }
+
+    [Fact]
+    public void GetEnum_UnknownValue_ListsSnakeCaseValues()
+    {
+        var ex = Assert.Throws<ToolException>(() => Args("""{"type":"banana"}""").GetEnum<Sample>("type"));
+
+        Assert.Contains("movie, music_album", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GetEnumArray_ParsesEachValueAndNamesArgumentOnError()
+    {
+        Assert.Equal(new[] { Sample.Movie, Sample.MusicAlbum }, Args("""{"types":["movie","music_album"]}""").GetEnumArray<Sample>("types"));
+        Assert.Empty(Args("{}").GetEnumArray<Sample>("types"));
+
+        var ex = Assert.Throws<ToolException>(() => Args("""{"types":["movie","nope"]}""").GetEnumArray<Sample>("types"));
+        Assert.Contains("'types'", ex.Message, StringComparison.Ordinal);
+    }
 }

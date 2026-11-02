@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 
 namespace Jellyfin.Plugin.Mcp.Mcp;
@@ -176,22 +177,25 @@ public sealed class ToolArguments
         where T : struct, Enum
     {
         var text = GetString(name);
-        if (text is null)
+        return text is null ? null : ParseEnum<T>(name, text);
+    }
+
+    /// <summary>
+    /// Gets an optional array of enum values, matched case-insensitively; snake_case is accepted.
+    /// </summary>
+    /// <typeparam name="T">The enum type.</typeparam>
+    /// <param name="name">The argument name.</param>
+    /// <returns>The values; empty when absent.</returns>
+    public IReadOnlyList<T> GetEnumArray<T>(string name)
+        where T : struct, Enum
+    {
+        var result = new List<T>();
+        foreach (var text in GetStringArray(name))
         {
-            return null;
+            result.Add(ParseEnum<T>(name, text));
         }
 
-        var normalized = text.Replace("_", string.Empty, StringComparison.Ordinal);
-        foreach (var candidate in Enum.GetValues<T>())
-        {
-            if (string.Equals(candidate.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate;
-            }
-        }
-
-        var allowed = string.Join(", ", Enum.GetNames<T>());
-        throw Invalid(name, "must be one of: " + allowed);
+        return result;
     }
 
     /// <summary>
@@ -204,6 +208,22 @@ public sealed class ToolArguments
         var limit = Math.Clamp(GetInt("limit") ?? DefaultLimit, 1, Math.Max(1, maxPageSize));
         var startIndex = Math.Max(0, GetInt("startIndex") ?? 0);
         return (startIndex, limit);
+    }
+
+    private static T ParseEnum<T>(string name, string text)
+        where T : struct, Enum
+    {
+        var normalized = text.Replace("_", string.Empty, StringComparison.Ordinal);
+        foreach (var candidate in Enum.GetValues<T>())
+        {
+            if (string.Equals(candidate.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        var allowed = string.Join(", ", Enum.GetNames<T>().Select(SnakeCase.From));
+        throw Invalid(name, "must be one of: " + allowed);
     }
 
     private static ToolException Invalid(string name, string reason)

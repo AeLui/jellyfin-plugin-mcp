@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Library;
 
@@ -13,15 +14,15 @@ namespace Jellyfin.Plugin.Mcp.Tools;
 /// </summary>
 public abstract class JellyfinToolBase : IMcpTool
 {
-    private const int DefaultMaxPageSize = 100;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyfinToolBase"/> class.
     /// </summary>
     /// <param name="userManager">The user manager.</param>
-    protected JellyfinToolBase(IUserManager userManager)
+    /// <param name="settings">The plugin settings.</param>
+    protected JellyfinToolBase(IUserManager userManager, IPluginSettings settings)
     {
         UserManager = userManager;
+        Settings = settings;
     }
 
     /// <inheritdoc />
@@ -42,7 +43,12 @@ public abstract class JellyfinToolBase : IMcpTool
     /// <summary>
     /// Gets the configured maximum page size, never below 1.
     /// </summary>
-    protected static int MaxPageSize => Math.Max(1, Plugin.Instance?.Configuration.MaxPageSize ?? DefaultMaxPageSize);
+    protected int MaxPageSize => Math.Max(1, Settings.MaxPageSize);
+
+    /// <summary>
+    /// Gets the plugin settings.
+    /// </summary>
+    protected IPluginSettings Settings { get; }
 
     /// <summary>
     /// Gets the user manager.
