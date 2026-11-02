@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Entities;
@@ -81,6 +83,7 @@ public sealed class GetPersonTool : LibraryToolBase
             StartIndex = startIndex,
             Limit = limit,
             EnableTotalRecordCount = true,
+            OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.SortName, SortOrder.Ascending) },
         };
         var items = _libraryManager.GetItemsResult(query);
 
@@ -96,9 +99,9 @@ public sealed class GetPersonTool : LibraryToolBase
             result["overview"] = person.Overview;
         }
 
-        if (person.PremiereDate is { } birth)
+        if (ItemMapper.Utc(person.PremiereDate) is { } birth)
         {
-            result["birthDate"] = birth.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            result["birthDate"] = birth;
         }
 
         return Task.FromResult(ToolResult.Json(result));

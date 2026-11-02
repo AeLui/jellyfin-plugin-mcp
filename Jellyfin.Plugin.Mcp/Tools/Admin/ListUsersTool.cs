@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -58,7 +59,7 @@ public sealed class ListUsersTool : AdminToolBase
     {
         var result = new Dictionary<string, object>
         {
-            ["id"] = user.Id,
+            ["id"] = user.Id.ToString("N", CultureInfo.InvariantCulture),
             ["name"] = user.Username,
             ["isAdministrator"] = user.HasPermission(PermissionKind.IsAdministrator),
             ["isDisabled"] = user.HasPermission(PermissionKind.IsDisabled),

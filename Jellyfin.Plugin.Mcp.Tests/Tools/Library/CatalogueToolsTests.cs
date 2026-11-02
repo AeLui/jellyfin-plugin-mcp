@@ -40,13 +40,19 @@ public class CatalogueToolsTests
         _principal = new McpPrincipal(_user.Id, new HashSet<string> { McpScopes.Library });
     }
 
+    private void ViewsContain(params Guid[] ids)
+        => _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>()))
+            .Returns(ids.Select(i => (Folder)new CollectionFolder { Id = i }).ToArray());
+
     private static ToolArguments Args(string json) => new(JsonDocument.Parse(json).RootElement.Clone());
 
-    private SearchTool Search() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, new ItemLookup(_library.Object));
+    private ItemLookup Lookup() => new(_library.Object, _views.Object);
 
-    private BrowseTool Browse() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, new ItemLookup(_library.Object));
+    private SearchTool Search() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
 
-    private GetItemTool GetItem() => new(_users.Object, _settings.Object, _userData.Object, new ItemLookup(_library.Object), _library.Object);
+    private BrowseTool Browse() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
+
+    private GetItemTool GetItem() => new(_users.Object, _settings.Object, _userData.Object, Lookup(), _library.Object);
 
     [Fact]
     public async Task Search_PassesUserAndFiltersToQuery()
@@ -56,7 +62,7 @@ public class CatalogueToolsTests
             .Callback<InternalItemsQuery>(queries.Add)
             .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
         var library = Guid.NewGuid();
-        _library.Setup(l => l.GetItemById<BaseItem>(library, _user)).Returns(new Folder { Id = library });
+        ViewsContain(library);
 
         var result = await Search().ExecuteAsync(
             Args($$"""{"query":"matrix","types":["movie","music_album"],"genres":["Action"],"yearFrom":1999,"yearTo":2003,"libraryId":"{{library}}","limit":10000,"startIndex":5}"""),
@@ -242,10 +248,45 @@ public class CatalogueToolsTests
     public async Task Search_HiddenLibraryId_ReturnsNotFoundWithoutQuerying()
     {
         var library = Guid.NewGuid();
-        _library.Setup(l => l.GetItemById<BaseItem>(library, _user)).Returns((BaseItem?)null);
+        ViewsContain(Guid.NewGuid());
 
         var ex = await Assert.ThrowsAsync<ToolException>(
             () => Search().ExecuteAsync(Args($$"""{"query":"x","libraryId":"{{library}}"}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Search_RootFolderIdAsLibrary_ReturnsNotFoundWithoutQuerying()
+    {
+        // Root folders are visible to every user but are not in the user's views.
+        var root = new UserRootFolder { Id = Guid.NewGuid() };
+        var aggregate = new AggregateFolder { Id = Guid.NewGuid() };
+        ViewsContain(Guid.NewGuid());
+        _library.Setup(l => l.GetItemById<BaseItem>(root.Id, _user)).Returns(root);
+        _library.Setup(l => l.GetItemById<BaseItem>(aggregate.Id, _user)).Returns(aggregate);
+
+        foreach (var id in new[] { root.Id, aggregate.Id })
+        {
+            var ex = await Assert.ThrowsAsync<ToolException>(
+                () => Search().ExecuteAsync(Args($$"""{"query":"x","libraryId":"{{id}}"}"""), _principal, CancellationToken.None));
+            Assert.Equal("Item not found", ex.Message);
+        }
+
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Browse_RootFolderIdAsParent_ReturnsNotFoundWithoutQuerying(bool userRoot)
+    {
+        BaseItem root = userRoot ? new UserRootFolder { Id = Guid.NewGuid() } : new AggregateFolder { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(root.Id, _user)).Returns(root);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Browse().ExecuteAsync(Args($$"""{"parentId":"{{root.Id}}"}"""), _principal, CancellationToken.None));
 
         Assert.Equal("Item not found", ex.Message);
         _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);

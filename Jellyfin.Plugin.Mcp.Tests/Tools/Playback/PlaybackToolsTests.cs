@@ -68,7 +68,7 @@ public class PlaybackToolsTests
 
     private ListSessionsTool List() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 
-    private PlayTool Play() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object));
+    private PlayTool Play() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object));
 
     private PlaybackControlTool Control() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 

@@ -47,7 +47,7 @@ public sealed class ManageToolsTests : IDisposable
 
     private static JsonElement Parse(ToolResult result) => JsonDocument.Parse(result.Text).RootElement;
 
-    private ItemLookup Lookup() => new(_library.Object);
+    private ItemLookup Lookup() => new(_library.Object, new Mock<IUserViewManager>().Object);
 
     private PlaylistResolver Resolver() => new(Lookup(), _playlists.Object);
 
@@ -337,6 +337,8 @@ public sealed class ManageToolsTests : IDisposable
         Assert.True(List().Annotations.ReadOnly);
         Assert.True(Manage().Annotations.Destructive);
         Assert.True(SetPlayed().Annotations.Idempotent);
+        Assert.True(SetPlayed().Annotations.Destructive);
+        Assert.Contains("cannot be undone", SetPlayed().Description, StringComparison.Ordinal);
         Assert.True(SetFavorite().Annotations.Idempotent);
     }
 }

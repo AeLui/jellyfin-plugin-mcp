@@ -87,7 +87,7 @@ public sealed class SearchTool : LibraryToolBase
         var user = GetUser(principal);
         if (libraryId is not null)
         {
-            _lookup.GetVisible(user, libraryId.Value);
+            _lookup.EnsureUserLibrary(user, libraryId.Value);
         }
 
         var query = new InternalItemsQuery(user)

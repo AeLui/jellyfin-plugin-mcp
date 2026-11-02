@@ -37,13 +37,13 @@ public sealed class SetPlayedTool : ManageToolBase
     public override string Name => "jellyfin_set_played";
 
     /// <inheritdoc />
-    public override string Description => "Mark an item as played or unplayed for the token's user. For a series or season this applies to all its episodes. Changes watch history.";
+    public override string Description => "Mark an item as played or unplayed for the token's user. For a series or season this applies to all its episodes. Changes watch history. played:false on a series or season clears the play state and resume positions of all its episodes and cannot be undone.";
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
-    public override ToolAnnotations Annotations { get; } = new(false, false, true);
+    public override ToolAnnotations Annotations { get; } = new(false, true, true);
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)

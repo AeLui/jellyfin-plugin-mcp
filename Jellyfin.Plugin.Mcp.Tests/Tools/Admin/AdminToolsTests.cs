@@ -60,7 +60,7 @@ public class AdminToolsTests
     private void SetTasks(params Mock<IScheduledTaskWorker>[] workers)
         => _tasks.SetupGet(t => t.ScheduledTasks).Returns(workers.Select(w => w.Object).ToList());
 
-    private RefreshItemTool Refresh() => new(_users.Object, _settings.Object, new ItemLookup(_library.Object), _providers.Object, _fileSystem.Object);
+    private RefreshItemTool Refresh() => new(_users.Object, _settings.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object), _providers.Object, _fileSystem.Object);
 
     private Movie AddMovie()
     {
@@ -313,7 +313,7 @@ public class AdminToolsTests
         var expected = new[] { "id", "isAdministrator", "isDisabled", "lastActivityDate", "lastLoginDate", "name" };
         var adminItem = items.Single(i => i.GetProperty("isAdministrator").GetBoolean());
         Assert.Equal(expected, adminItem.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
-        Assert.Equal(admin.Id, adminItem.GetProperty("id").GetGuid());
+        Assert.Equal(admin.Id.ToString("N"), adminItem.GetProperty("id").GetString());
         Assert.Equal("2026-05-06T07:08:09.0000000Z", adminItem.GetProperty("lastActivityDate").GetString());
         Assert.Equal("2026-05-01T00:00:00.0000000Z", adminItem.GetProperty("lastLoginDate").GetString());
         var disabledItem = items.Single(i => i.GetProperty("isDisabled").GetBoolean());

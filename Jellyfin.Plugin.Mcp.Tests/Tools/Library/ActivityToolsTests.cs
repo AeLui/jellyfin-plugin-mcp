@@ -18,6 +18,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.TV;
+using MediaBrowser.Model.Library;
 using MediaBrowser.Model.Querying;
 using Moq;
 using Xunit;
@@ -30,6 +31,7 @@ public class ActivityToolsTests
     private readonly Mock<IUserManager> _users = new();
     private readonly Mock<ILibraryManager> _library = new(MockBehavior.Strict);
     private readonly Mock<IUserDataManager> _userData = new();
+    private readonly Mock<IUserViewManager> _views = new();
     private readonly Mock<ITVSeriesManager> _tv = new(MockBehavior.Strict);
     private readonly Mock<IPluginSettings> _settings = new();
     private readonly McpPrincipal _principal;
@@ -50,7 +52,7 @@ public class ActivityToolsTests
     private async Task<ToolResult> Run(IMcpTool tool, string json)
         => await tool.ExecuteAsync(Args(json), _principal, CancellationToken.None);
 
-    private ItemLookup Lookup() => new(_library.Object);
+    private ItemLookup Lookup() => new(_library.Object, _views.Object);
 
     private RecentlyAddedTool Recent() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
 
@@ -169,8 +171,8 @@ public class ActivityToolsTests
     [Fact]
     public async Task RecentlyAdded_ScopedToLibrary()
     {
-        var library = new Folder { Id = Guid.NewGuid() };
-        _library.Setup(l => l.GetItemById<BaseItem>(library.Id, _user)).Returns(library);
+        var library = new CollectionFolder { Id = Guid.NewGuid() };
+        _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>())).Returns(new Folder[] { library });
 
         await Run(Recent(), $$"""{"libraryId":"{{library.Id}}","types":["movie","episode"],"limit":7}""");
 
@@ -200,11 +202,29 @@ public class ActivityToolsTests
     public async Task RecentlyAdded_HiddenLibrary_ReturnsNotFoundWithoutQuerying()
     {
         var id = Guid.NewGuid();
-        _library.Setup(l => l.GetItemById<BaseItem>(id, _user)).Returns((BaseItem?)null);
+        _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>())).Returns(new Folder[] { new CollectionFolder { Id = Guid.NewGuid() } });
 
         var ex = await Assert.ThrowsAsync<ToolException>(() => Run(Recent(), $$"""{"libraryId":"{{id}}"}"""));
 
         Assert.Equal("Item not found", ex.Message);
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RecentlyAdded_RootFolderIdAsLibrary_ReturnsNotFoundWithoutQuerying()
+    {
+        var root = new UserRootFolder { Id = Guid.NewGuid() };
+        var aggregate = new AggregateFolder { Id = Guid.NewGuid() };
+        _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>())).Returns(new Folder[] { new CollectionFolder { Id = Guid.NewGuid() } });
+        _library.Setup(l => l.GetItemById<BaseItem>(root.Id, _user)).Returns(root);
+        _library.Setup(l => l.GetItemById<BaseItem>(aggregate.Id, _user)).Returns(aggregate);
+
+        foreach (var id in new[] { root.Id, aggregate.Id })
+        {
+            var ex = await Assert.ThrowsAsync<ToolException>(() => Run(Recent(), $$"""{"libraryId":"{{id}}"}"""));
+            Assert.Equal("Item not found", ex.Message);
+        }
+
         _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
     }
 
@@ -231,6 +251,7 @@ public class ActivityToolsTests
         var q = Assert.Single(_queries);
         Assert.Same(_user, q.User);
         Assert.Equal(new[] { person.Id }, q.PersonIds);
+        Assert.Equal((ItemSortBy.SortName, SortOrder.Ascending), Assert.Single(q.OrderBy));
         Assert.True(q.Recursive);
         Assert.Equal(Guid.Empty, q.ParentId);
         Assert.Empty(q.ItemIds);
@@ -240,6 +261,18 @@ public class ActivityToolsTests
         Assert.Equal("1940-04-25T00:00:00.0000000Z", doc.RootElement.GetProperty("birthDate").GetString());
         Assert.Equal("Heat", doc.RootElement.GetProperty("items")[0].GetProperty("name").GetString());
         Assert.Equal(1, doc.RootElement.GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task GetPerson_UnspecifiedBirthDate_KeepsCalendarDate()
+    {
+        var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", PremiereDate = new DateTime(1940, 4, 25, 0, 0, 0, DateTimeKind.Unspecified) };
+        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns(person);
+
+        var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal("1940-04-25T00:00:00.0000000Z", doc.RootElement.GetProperty("birthDate").GetString());
     }
 
     [Fact]
