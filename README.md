@@ -11,7 +11,7 @@ A Jellyfin plugin that exposes your server to AI assistants through the [Model C
 
 ## Install in three steps
 
-1. In Jellyfin go to **Dashboard > Plugins > Repositories > +** and add `https://raw.githubusercontent.com/AFBenot/jellyfin-plugin-mcp/main/manifest.json`.
+1. In Jellyfin go to **Dashboard > Plugins > Repositories > +** and add `https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/manifest.json`.
 2. Open the **Catalog**, install **MCP Server** and restart Jellyfin.
 3. Open **Dashboard > Plugins > MCP Server**, create a token (pick the user and the scopes) and copy it. It is shown only once.
 

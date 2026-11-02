@@ -8,7 +8,7 @@
 ## Install from the plugin repository
 
 1. **Dashboard > Plugins > Repositories > +**, then add:
-   `https://raw.githubusercontent.com/AFBenot/jellyfin-plugin-mcp/main/manifest.json`
+   `https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/manifest.json`
 2. **Dashboard > Plugins > Catalog**, find **MCP Server** (category General), install it and restart Jellyfin.
 
 ## Manual install

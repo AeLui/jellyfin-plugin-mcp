@@ -18,7 +18,7 @@ def _plugin(versions):
         "name": "MCP Server",
         "description": "desc",
         "overview": "ov",
-        "owner": "AFBenot",
+        "owner": "AeLui",
         "category": "General",
         "versions": versions,
     }

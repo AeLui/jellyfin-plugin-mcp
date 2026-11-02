@@ -97,7 +97,7 @@ The release workflow then:
 
 Note: step 4 pushes to `main` with the workflow's `GITHUB_TOKEN`. If `main` ever gets branch protection that blocks direct pushes, the manifest update will fail and the release job must be changed (for example to open a pull request, or to allow the Actions bot to bypass the rule).
 
-Users receive the update through the repository URL `https://raw.githubusercontent.com/AFBenot/jellyfin-plugin-mcp/main/manifest.json`.
+Users receive the update through the repository URL `https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/manifest.json`.
 
 ## Supporting a new Jellyfin version
 

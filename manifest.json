@@ -4,7 +4,7 @@
     "name": "MCP Server",
     "description": "Adds an MCP (Model Context Protocol) endpoint to Jellyfin so AI assistants can browse the library, control playback and manage content using scoped, per-user access tokens.",
     "overview": "Exposes Jellyfin to AI assistants through the Model Context Protocol.",
-    "owner": "AFBenot",
+    "owner": "AeLui",
     "category": "General",
     "versions": []
   }

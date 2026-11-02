@@ -10,7 +10,7 @@ description: >
   can browse the library, control playback and manage content using
   scoped, per-user access tokens.
 category: "General"
-owner: "AFBenot"
+owner: "AeLui"
 artifacts:
 - "Jellyfin.Plugin.Mcp.dll"
 changelog: >
