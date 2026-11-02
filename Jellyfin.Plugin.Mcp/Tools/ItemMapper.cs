@@ -58,7 +58,7 @@ public static class ItemMapper
         Add(result, "genres", NonEmpty(item.Genres));
         Add(result, "studios", NonEmpty(item.Studios));
         Add(result, "tags", NonEmpty(item.Tags));
-        Add(result, "premiereDate", Utc(item.PremiereDate));
+        Add(result, "premiereDate", CalendarDate(item.PremiereDate));
         Add(result, "criticRating", item.CriticRating);
         if (people.Count > 0)
         {
@@ -93,6 +93,26 @@ public static class ItemMapper
             ? null
             : (value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
                 .ToString("O", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Formats a calendar date (premiere date, birth date) as <c>yyyy-MM-dd</c>.
+    /// </summary>
+    /// <remarks>
+    /// Metadata providers store these as local midnight converted to UTC, so a server east of UTC keeps
+    /// 17 March as 16 March 23:00Z. Rounding to the nearest UTC midnight recovers the intended day.
+    /// </remarks>
+    /// <param name="value">The stored date; <see cref="DateTimeKind.Unspecified"/> is taken as UTC.</param>
+    /// <returns>The formatted day, or <c>null</c> when there is none.</returns>
+    internal static string? CalendarDate(DateTime? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var utc = value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : value.Value;
+        return utc.AddHours(12).Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
 
     private static Dictionary<string, object> BuildSummary(BaseItem item, UserItemData? data)
     {

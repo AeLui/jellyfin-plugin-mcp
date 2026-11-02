@@ -101,7 +101,7 @@ Get the details of one item (overview, genres, studios, tags, people) by id.
 {"name":"jellyfin_get_item","arguments":{"itemId":"a1b2..."}}
 ```
 ```json
-{"id":"a1b2...","name":"Blade Runner","type":"movie","year":1982,"overview":"...","genres":["Science Fiction"],"premiereDate":"1982-06-25T00:00:00.0000000Z","people":[{"name":"Harrison Ford","role":"Rick Deckard","type":"Actor","id":"9f8e..."}]}
+{"id":"a1b2...","name":"Blade Runner","type":"movie","year":1982,"overview":"...","genres":["Science Fiction"],"premiereDate":"1982-06-25","people":[{"name":"Harrison Ford","role":"Rick Deckard","type":"Actor","id":"9f8e..."}]}
 ```
 
 ### jellyfin_get_person
@@ -120,7 +120,7 @@ Either `personId` or `name` is required. People belong to no library, so only th
 {"name":"jellyfin_get_person","arguments":{"name":"Harrison Ford","limit":2}}
 ```
 ```json
-{"id":"9f8e...","name":"Harrison Ford","totalCount":5,"items":[{"id":"a1b2...","name":"Blade Runner","type":"movie","year":1982}],"overview":"...","birthDate":"1942-07-13T00:00:00.0000000Z"}
+{"id":"9f8e...","name":"Harrison Ford","totalCount":5,"items":[{"id":"a1b2...","name":"Blade Runner","type":"movie","year":1982}],"overview":"...","birthDate":"1942-07-13"}
 ```
 
 ### jellyfin_list_libraries

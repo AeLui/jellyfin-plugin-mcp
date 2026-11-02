@@ -263,7 +263,7 @@ public class ActivityToolsTests
         using var doc = JsonDocument.Parse(result.Text);
         Assert.Equal("Al Pacino", doc.RootElement.GetProperty("name").GetString());
         Assert.Equal("Actor", doc.RootElement.GetProperty("overview").GetString());
-        Assert.Equal("1940-04-25T00:00:00.0000000Z", doc.RootElement.GetProperty("birthDate").GetString());
+        Assert.Equal("1940-04-25", doc.RootElement.GetProperty("birthDate").GetString());
         Assert.Equal("Heat", doc.RootElement.GetProperty("items")[0].GetProperty("name").GetString());
         Assert.Equal(1, doc.RootElement.GetProperty("totalCount").GetInt32());
     }
@@ -279,7 +279,25 @@ public class ActivityToolsTests
         var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
 
         using var doc = JsonDocument.Parse(result.Text);
-        Assert.Equal("1940-04-25T00:00:00.0000000Z", doc.RootElement.GetProperty("birthDate").GetString());
+        Assert.Equal("1940-04-25", doc.RootElement.GetProperty("birthDate").GetString());
+    }
+
+    [Theory]
+    [InlineData(1951, 3, 16, 23, "1951-03-17")]
+    [InlineData(1951, 3, 17, 2, "1951-03-17")]
+    [InlineData(1951, 3, 17, 0, "1951-03-17")]
+    public async Task GetPerson_BirthDateStoredAsShiftedMidnight_RoundsToCalendarDay(int year, int month, int day, int hour, string expected)
+    {
+        var birth = new DateTime(year, month, day, hour, 0, 0, DateTimeKind.Utc);
+        var person = new Person { Id = Guid.NewGuid(), Name = "Kurt Russell", PremiereDate = birth };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { new Movie { Id = Guid.NewGuid(), Name = "The Thing" } }));
+
+        var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(expected, doc.RootElement.GetProperty("birthDate").GetString());
     }
 
     [Fact]

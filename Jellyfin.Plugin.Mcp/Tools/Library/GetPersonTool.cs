@@ -94,7 +94,7 @@ public sealed class GetPersonTool : LibraryToolBase
             result["overview"] = person.Overview;
         }
 
-        if (ItemMapper.Utc(person.PremiereDate) is { } birth)
+        if (ItemMapper.CalendarDate(person.PremiereDate) is { } birth)
         {
             result["birthDate"] = birth;
         }
