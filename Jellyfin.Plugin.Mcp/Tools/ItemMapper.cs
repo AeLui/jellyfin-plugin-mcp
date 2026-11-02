@@ -23,6 +23,25 @@ public static class ItemMapper
         => BuildSummary(item, data);
 
     /// <summary>
+    /// Maps a playlist entry to its summary shape, prefixed with the id used to remove the entry.
+    /// </summary>
+    /// <param name="entryId">The playlist entry id, if the entry has one.</param>
+    /// <param name="item">The item.</param>
+    /// <param name="data">The user's data for the item, if any.</param>
+    /// <returns>The summary with an <c>entryId</c> field.</returns>
+    public static object Entry(string? entryId, BaseItem item, UserItemData? data)
+    {
+        var result = new Dictionary<string, object>();
+        Add(result, "entryId", entryId);
+        foreach (var pair in BuildSummary(item, data))
+        {
+            result[pair.Key] = pair.Value;
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Maps an item to its detailed shape.
     /// </summary>
     /// <param name="item">The item.</param>
@@ -37,7 +56,7 @@ public static class ItemMapper
         Add(result, "genres", NonEmpty(item.Genres));
         Add(result, "studios", NonEmpty(item.Studios));
         Add(result, "tags", NonEmpty(item.Tags));
-        Add(result, "premiereDate", item.PremiereDate?.ToString("O", CultureInfo.InvariantCulture));
+        Add(result, "premiereDate", Utc(item.PremiereDate));
         Add(result, "criticRating", item.CriticRating);
         if (people.Count > 0)
         {
@@ -77,11 +96,19 @@ public static class ItemMapper
             Add(result, "played", data.Played);
             Add(result, "favorite", data.IsFavorite);
             Add(result, "playbackPositionMinutes", data.PlaybackPositionTicks > 0 ? Minutes(data.PlaybackPositionTicks) : null);
-            Add(result, "lastPlayedDate", data.LastPlayedDate?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+            Add(result, "lastPlayedDate", Utc(data.LastPlayedDate));
         }
 
         return result;
     }
+
+    // Jellyfin stores UTC timestamps, but values read back from the database are often DateTimeKind.Unspecified;
+    // ToUniversalTime() would treat those as local time and shift them.
+    private static string? Utc(DateTime? value)
+        => value is null
+            ? null
+            : (value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+                .ToString("O", CultureInfo.InvariantCulture);
 
     private static string? SeriesName(BaseItem item)
         => item switch
