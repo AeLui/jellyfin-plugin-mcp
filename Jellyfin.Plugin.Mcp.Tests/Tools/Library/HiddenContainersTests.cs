@@ -141,11 +141,13 @@ public class HiddenContainersTests
 
         var result = await tool.ExecuteAsync(Args("""{"query":"x"}"""), _principal, CancellationToken.None);
 
-        var q = Assert.Single(_queries);
+        var q = _queries[0];
         Assert.Contains(BaseItemKind.Playlist, q.ExcludeItemTypes);
         Assert.Contains(BaseItemKind.BoxSet, q.ExcludeItemTypes);
         Assert.Equal(new[] { "Movie" }, Names(result));
-        Assert.Equal(4, Total(result));
+
+        // The mock ignores the exclusion and returns a hidden playlist, so the exact unpaged rerun counts only the movie.
+        Assert.Equal(1, Total(result));
     }
 
     [Fact]
@@ -178,6 +180,43 @@ public class HiddenContainersTests
 
         Assert.Equal(new[] { "Heat" }, Names(result));
         Assert.Equal(1, Total(result));
-        Assert.Contains(BaseItemKind.BoxSet, Assert.Single(_queries).ExcludeItemTypes);
+        Assert.Contains(BaseItemKind.BoxSet, _queries[0].ExcludeItemTypes);
     }
+
+    [Fact]
+    public async Task Search_MixedTypes_KeepsSqlPaging()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Movie" };
+        Returns(40, movie, Playlist("secret", Guid.NewGuid()));
+        var tool = new SearchTool(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
+
+        var result = await tool.ExecuteAsync(Args("""{"query":"x","types":["playlist","movie"],"limit":5,"startIndex":2}"""), _principal, CancellationToken.None);
+
+        var q = Assert.Single(_queries);
+        Assert.Equal(5, q.Limit);
+        Assert.Equal(2, q.StartIndex);
+        Assert.Equal(new[] { "Movie" }, Names(result));
+        Assert.Equal(39, Total(result));
+    }
+
+    [Fact]
+    public async Task Browse_NonPluginFolderParent_RerunsUnpagedWhenAGuardedItemWasRemoved()
+    {
+        var parent = new Folder { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Movie" };
+        Returns(2, movie, Playlist("secret", Guid.NewGuid()));
+        var tool = new BrowseTool(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
+
+        var result = await tool.ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}","limit":1}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(2, _queries.Count);
+        Assert.Null(_queries[1].Limit);
+        Assert.Equal(new[] { "Movie" }, Names(result));
+        Assert.Equal(1, Total(result));
+    }
+
+    [Fact]
+    public void GetVisibleItemsResult_QueryWithoutUser_IsProgrammingError()
+        => Assert.Throws<InvalidOperationException>(() => _library.Object.GetVisibleItemsResult(new InternalItemsQuery()));
 }

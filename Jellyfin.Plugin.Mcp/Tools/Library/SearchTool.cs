@@ -23,7 +23,7 @@ public sealed class SearchTool : LibraryToolBase
         """
         {"type":"object","properties":{
         "query":{"type":"string","description":"Text to search for."},
-        "types":{"type":"array","items":{"type":"string","enum":["movie","series","season","episode","audio","music_album","music_artist","playlist","box_set"]},"description":"Restrict to these item types."},
+        "types":{"type":"array","items":{"type":"string","enum":["movie","series","season","episode","audio","music_album","music_artist","playlist","box_set"]},"description":"Restrict to these item types. Playlists and collections (playlist, box_set) are only returned when requested here."},
         "genres":{"type":"array","items":{"type":"string"},"description":"Restrict to these genres."},
         "yearFrom":{"type":"integer","description":"Earliest production year; without yearTo runs to the current year."},
         "yearTo":{"type":"integer","description":"Latest production year; without yearFrom starts at 1880."},

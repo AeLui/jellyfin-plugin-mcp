@@ -7,7 +7,8 @@ internal sealed class Playlist : MediaBrowser.Controller.Playlists.Playlist
 {
     public bool Visible { get; set; }
 
-    public override bool IsVisible(User user, bool skipAllowedTagsCheck = false) => Visible;
+    // Deliberately different from IsVisibleStandalone so the tests pin the predicate production code uses.
+    public override bool IsVisible(User user, bool skipAllowedTagsCheck = false) => true;
 
     public override bool IsVisibleStandalone(User user) => Visible;
 }
@@ -16,7 +17,8 @@ internal sealed class BoxSet : MediaBrowser.Controller.Entities.Movies.BoxSet
 {
     public bool Visible { get; set; }
 
-    public override bool IsVisible(User user, bool skipAllowedTagsCheck = false) => Visible;
+    // Deliberately different from IsVisibleStandalone so the tests pin the predicate production code uses.
+    public override bool IsVisible(User user, bool skipAllowedTagsCheck = false) => true;
 
     public override bool IsVisibleStandalone(User user) => Visible;
 }
