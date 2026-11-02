@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Mcp.Auth;
@@ -82,17 +83,21 @@ public sealed class McpController : ControllerBase
         }
 
         var result = await _dispatcher.DispatchAsync(body, auth.Principal!, ct).ConfigureAwait(false);
+
+        // Responses are written with an explicit Content-Length rather than chunked: behind some reverse proxies
+        // the chunked responses of this controller reached clients with a chunked header but an unchunked body.
+        Response.StatusCode = result.StatusCode;
         if (result.Body is null)
         {
-            return StatusCode(result.StatusCode);
+            Response.ContentLength = 0;
+            return new EmptyResult();
         }
 
-        return new ContentResult
-        {
-            StatusCode = result.StatusCode,
-            ContentType = "application/json",
-            Content = result.Body,
-        };
+        var bytes = Encoding.UTF8.GetBytes(result.Body);
+        Response.ContentType = "application/json; charset=utf-8";
+        Response.ContentLength = bytes.Length;
+        await Response.Body.WriteAsync(bytes, ct).ConfigureAwait(false);
+        return new EmptyResult();
     }
 
     /// <summary>

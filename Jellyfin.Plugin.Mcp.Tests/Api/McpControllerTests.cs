@@ -120,6 +120,22 @@ public class McpControllerTests
     }
 
     [Fact]
+    public async Task Post_Responses_CarryExplicitContentLength()
+    {
+        await using var host = await McpTestHost.StartAsync();
+
+        var ping = await host.Client.SendAsync(host.Post(Ping));
+        var body = await ping.Content.ReadAsByteArrayAsync();
+        Assert.Equal(body.Length, ping.Content.Headers.ContentLength);
+        Assert.NotEqual(true, ping.Headers.TransferEncodingChunked);
+        Assert.Equal("application/json; charset=utf-8", ping.Content.Headers.ContentType!.ToString());
+
+        var notification = await host.Client.SendAsync(host.Post("""{"jsonrpc":"2.0","method":"notifications/initialized"}"""));
+        Assert.Equal(0, notification.Content.Headers.ContentLength);
+        Assert.NotEqual(true, notification.Headers.TransferEncodingChunked);
+    }
+
+    [Fact]
     public async Task Post_WrongContentType_Returns415()
     {
         await using var host = await McpTestHost.StartAsync();
