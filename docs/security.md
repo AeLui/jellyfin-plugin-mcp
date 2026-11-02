@@ -1,0 +1,79 @@
+# Security
+
+## Model in one paragraph
+
+The plugin lets a token holder act on Jellyfin as one specific user, restricted to the scopes granted to the token. It never grants more than that user could do in Jellyfin itself, and the `admin` scope additionally requires the user to be an administrator. Anyone who holds a token holds that access, so treat tokens like passwords.
+
+## Tokens
+
+- Format: `jmcp_` followed by 32 random bytes in base64url (no padding).
+- Storage: only the lowercase SHA-256 hash and an 8-character display prefix are stored in the plugin configuration. The plaintext is shown once, at creation. Tokens are never logged; tool-call logging (opt-in) records tool name, user, duration and outcome, never arguments or tokens.
+- Tokens are looked up by hash on every request. Nothing about the principal is cached: revoking a token, disabling or deleting its user, or removing the user's administrator flag takes effect on the very next request.
+- Optional expiry of 30 days, 90 days or 1 year, and an enabled flag.
+- Jellyfin's generic plugin-configuration save (the endpoint that replaces the whole configuration object) cannot overwrite the token list: the plugin overrides `UpdateConfiguration` to keep the current tokens. A stale or hostile client therefore cannot resurrect revoked tokens or drop new ones. Tokens change only through the plugin's admin endpoints, under one lock.
+- Token management endpoints (`/McpServer/Tokens`) require a Jellyfin administrator session (elevation policy). MCP tokens cannot manage tokens.
+
+## Scopes
+
+| Scope | Allows | Notes |
+|---|---|---|
+| `library` | Read-only browsing, search, details, history | Everything is limited to what the token's user may see. |
+| `playback` | List sessions, play, control, send messages | The user's own sessions only (see below). |
+| `manage` | Playlists, favorites, played state | Own data only. Never touches other users' data. |
+| `admin` | Users, tasks, scans, metadata refresh | Granted only to administrators and dropped at request time if the user stops being one. |
+
+Start with `library` and add scopes per client.
+
+### Library access and parental controls
+
+Every user-supplied item id (item, parent, library, series, person, playlist entries, play targets) is loaded with the user overload `ILibraryManager.GetItemById<BaseItem>(id, user)`. That overload enforces the user's enabled/blocked libraries and parental rating limits, so an item the user cannot see is indistinguishable from a missing one (`Item not found`).
+
+`InternalItemsQuery` with `ItemIds` or `ParentId` is deliberately not used for this check: in Jellyfin 12.4 such a query does not enforce library-folder access, so a guessed id could leak an item from a hidden library. Queries without those fields are scoped by Jellyfin to the user's libraries, and list results are always built from a user-scoped query.
+
+### Sessions
+
+`playback` tools act on active, remote-controllable sessions. A token can control sessions of its own user. Controlling another user's session requires both the `admin` scope and the Jellyfin permission "Allow remote control of other users" (`EnableRemoteControlOfOtherUsers`) on the token's user. Commands are sent without a controlling session, which makes Jellyfin skip its own permission check, so the plugin enforces ownership itself. A session you may not control returns the same `Session not found` as a wrong id.
+
+### Destructive tools
+
+- `jellyfin_manage_playlist` can delete playlists permanently.
+- `jellyfin_run_task` can start tasks that delete cache, log or transcode files or clean the database. It is annotated destructive and refuses the plugin update task (`PluginUpdates`), which installs third-party code.
+- `jellyfin_refresh_item` can overwrite metadata and images.
+
+MCP clients are expected to ask for confirmation on tools annotated destructive; keep that confirmation enabled.
+
+## Request hardening
+
+- `POST /mcp` only; `GET` and `DELETE` answer 405. Maximum body 1 MiB (413 above).
+- Failed authentication is rate limited: more than 10 failures per minute from one IP answers 429 with `Retry-After: 60`. To bound memory, at most 10 000 addresses are tracked; when that cap is reached, new addresses are not tracked and the limiter fails open for them (it never locks out legitimate clients because of an attack).
+- The failure count is per remote IP. Behind a reverse proxy, configure Jellyfin's **Known Proxies** so the real client address is used; otherwise all clients share the proxy's address and a few failed attempts block everyone.
+- Argument validation: malformed arguments return `isError` results naming the argument; `limit` is clamped; id lists are capped (100).
+- Error messages do not leak server internals; unexpected failures are reduced to a generic message.
+
+## Deployment guidance
+
+- Prefer a trusted LAN or VPN. If the server is reachable from the internet, put it behind HTTPS (tokens travel in a header) and consider restricting `/mcp` at the proxy by IP.
+- Use one token per client, scoped minimally, with an expiry.
+- Create a dedicated, low-privilege Jellyfin user for assistants that do not need your personal watch state, and limit its libraries.
+- Revoke tokens you no longer use. The plugin page shows prefix and last-used time to identify them.
+- Turn on **Log tool calls** if you want an audit trail.
+
+## Threat model
+
+| Threat | Mitigation |
+|---|---|
+| Token theft | Hashed storage, expiry, instant revocation, minimal scopes, HTTPS/VPN guidance. A stolen token gives only that user's access and scopes. |
+| Token guessing | 256 bits of randomness plus the per-IP failure limiter. |
+| Privilege escalation to admin | `admin` scope only for administrators, re-checked on every request. |
+| Access to hidden libraries or rated-out content | User-aware item lookups for every id; hidden looks like missing. |
+| Controlling other people's playback | Session ownership, plus admin scope and remote-control permission for foreign sessions. |
+| Tampering with tokens via the generic plugin config API | `UpdateConfiguration` cannot change tokens. |
+| Prompt injection through media metadata | Metadata is returned as data; destructive tools are annotated so clients can confirm. Limit scopes so an injected instruction cannot do more than the scopes allow. |
+| Denial of service | 1 MiB body cap, failure limiter, bounded limiter memory, capped page sizes and id lists. |
+| Plugin installing third-party code | `PluginUpdates` task cannot be run through MCP. |
+
+Out of scope: a compromised Jellyfin server or host, and an attacker who is already a Jellyfin administrator.
+
+## Reporting vulnerabilities
+
+Please report security issues privately through GitHub security advisories on the repository rather than in a public issue.
