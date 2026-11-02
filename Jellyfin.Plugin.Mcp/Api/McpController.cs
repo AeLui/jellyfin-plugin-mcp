@@ -21,6 +21,10 @@ public sealed class McpController : ControllerBase
 {
     private const int MaxBodyBytes = 1_048_576;
 
+    // The framework limit sits above the manual cap so that oversized bodies reach ReadBodyAsync and get a 413
+    // from this controller instead of a BadHttpRequestException from Kestrel.
+    private const int RequestLimitSlackBytes = 65_536;
+
     private readonly TokenAuthenticator _authenticator;
     private readonly JsonRpcDispatcher _dispatcher;
 
@@ -41,7 +45,7 @@ public sealed class McpController : ControllerBase
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The JSON-RPC response, or an HTTP error.</returns>
     [HttpPost]
-    [RequestSizeLimit(MaxBodyBytes)]
+    [RequestSizeLimit(MaxBodyBytes + RequestLimitSlackBytes)]
     [Consumes("application/json")]
     public async Task<IActionResult> Post(CancellationToken ct)
     {
