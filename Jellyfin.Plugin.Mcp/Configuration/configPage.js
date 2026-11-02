@@ -24,42 +24,49 @@ export default function (view) {
         return td;
     }
 
-    async function copyText(text) {
+    function legacyCopy() {
+        try {
+            return document.execCommand('copy');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // Copies the text of a source field. The clipboard API needs a secure context, which plain-HTTP LAN
+    // installs lack, so fall back to execCommand on the source field itself (it lives inside the modal
+    // dialog, where elements outside the dialog would be inert), then on a temporary field in the same parent.
+    async function copyFrom(source) {
+        const text = source.value;
         try {
             if (navigator.clipboard && window.isSecureContext) {
                 await navigator.clipboard.writeText(text);
-                return true;
+                return;
             }
         } catch (e) {
-            // fall through to the legacy path
+            // fall through to the legacy paths
+        }
+
+        source.select();
+        if (legacyCopy()) {
+            return;
         }
 
         const area = document.createElement('textarea');
         area.value = text;
         area.style.position = 'fixed';
         area.style.opacity = '0';
-        document.body.appendChild(area);
+        source.parentElement.appendChild(area);
         area.select();
-        let ok = false;
-        try {
-            ok = document.execCommand('copy');
-        } catch (e) {
-            ok = false;
-        }
-
+        const ok = legacyCopy();
         area.remove();
-        return ok;
+        if (!ok) {
+            source.select();
+            toast('Copy failed. Select the text and copy it manually.');
+        }
     }
 
     function toast(message) {
         Dashboard.alert(message);
-    }
-
-    async function copyFrom(textarea) {
-        textarea.select();
-        if (!(await copyText(textarea.value))) {
-            toast('Copy failed. Select the text and copy it manually.');
-        }
     }
 
     function tokenRequest(type, url, body) {
@@ -189,12 +196,18 @@ export default function (view) {
                 ExpiresInDays: expiry === '' ? null : parseInt(expiry, 10)
             });
             $('mcpTokenName').value = '';
-            await loadTokens();
             showTokenDialog(created.Plaintext);
         } catch (e) {
             toast('Could not create the token. Check the name, user and scopes.');
+            return;
         } finally {
             Dashboard.hideLoadingMsg();
+        }
+
+        try {
+            await loadTokens();
+        } catch (e) {
+            toast('Token created, but the list could not be refreshed.');
         }
     }
 
