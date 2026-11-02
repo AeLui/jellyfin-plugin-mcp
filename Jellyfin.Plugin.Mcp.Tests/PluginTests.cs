@@ -1,7 +1,11 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Xml.Serialization;
+using Jellyfin.Plugin.Mcp.Auth;
 using Jellyfin.Plugin.Mcp.Configuration;
+using Jellyfin.Plugin.Mcp.Mcp;
+using Jellyfin.Plugin.Mcp.Tests.Auth;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Model.Serialization;
 using Moq;
@@ -63,19 +67,86 @@ public class PluginTests
     [Fact]
     public void PluginIdentity()
     {
-        var paths = new Mock<IApplicationPaths>();
-        paths.SetupGet(p => p.PluginConfigurationsPath).Returns(Path.GetTempPath());
-        paths.SetupGet(p => p.PluginsPath).Returns(Path.GetTempPath());
-        var xml = new Mock<IXmlSerializer>();
-
-        var plugin = new Plugin(paths.Object, xml.Object);
+        using var fixture = new PluginFixture();
+        var plugin = fixture.Plugin;
 
         Assert.Equal("MCP Server", plugin.Name);
         Assert.Equal(Guid.Parse("08dd6fbf-c026-48c9-9405-824c3906df09"), plugin.Id);
         Assert.Same(plugin, Plugin.Instance);
-        var page = Assert.Single(plugin.GetPages());
-        Assert.Equal("McpServer", page.Name);
+        var page = plugin.GetPages().First(p => p.Name == "McpServer");
         Assert.Equal("Jellyfin.Plugin.Mcp.Configuration.configPage.html", page.EmbeddedResourcePath);
-        Assert.NotNull(typeof(Plugin).Assembly.GetManifestResourceStream(page.EmbeddedResourcePath));
+    }
+
+    [Fact]
+    public void GetPages_EmbeddedResourcesExist()
+    {
+        using var fixture = new PluginFixture();
+
+        var pages = fixture.Plugin.GetPages().ToList();
+
+        Assert.Equal(new[] { "McpServer", "McpServerJs" }, pages.Select(p => p.Name));
+        Assert.Equal("Jellyfin.Plugin.Mcp.Configuration.configPage.js", pages.Single(p => p.Name == "McpServerJs").EmbeddedResourcePath);
+        foreach (var page in pages)
+        {
+            using var stream = typeof(Plugin).Assembly.GetManifestResourceStream(page.EmbeddedResourcePath);
+            Assert.NotNull(stream);
+            Assert.True(stream.Length > 0);
+        }
+    }
+
+    [Fact]
+    public void UpdateConfiguration_IgnoresIncomingTokens()
+    {
+        using var fixture = new PluginFixture();
+        var plugin = fixture.Plugin;
+        plugin.Configuration.Tokens.Add(new McpToken { Id = Guid.NewGuid(), Name = "keep" });
+
+        var stale = new PluginConfiguration { MaxPageSize = 50, LogToolCalls = true };
+        stale.Tokens.Add(new McpToken { Id = Guid.NewGuid(), Name = "resurrected" });
+        plugin.UpdateConfiguration(stale);
+
+        Assert.Equal(50, plugin.Configuration.MaxPageSize);
+        Assert.True(plugin.Configuration.LogToolCalls);
+        Assert.Equal("keep", Assert.Single(plugin.Configuration.Tokens).Name);
+
+        plugin.UpdateConfiguration(new PluginConfiguration());
+        Assert.Equal("keep", Assert.Single(plugin.Configuration.Tokens).Name);
+    }
+
+    [Fact]
+    public void TokenCreate_ThenSettingsUpdate_KeepsNewToken()
+    {
+        using var fixture = new PluginFixture();
+        var plugin = fixture.Plugin;
+        var store = new TokenStore(() => plugin.Configuration, plugin.SaveConfigurationWithTokens, new FakeClock(), Plugin.ConfigurationLock);
+
+        var (token, _) = store.Create("new", Guid.NewGuid(), new[] { McpScopes.Library }, null);
+        plugin.UpdateConfiguration(new PluginConfiguration { MaxPageSize = 10 });
+
+        Assert.Equal(10, plugin.Configuration.MaxPageSize);
+        Assert.Equal(token.Id, Assert.Single(store.GetAll()).Id);
+        Assert.True(store.Delete(token.Id));
+        plugin.UpdateConfiguration(new PluginConfiguration());
+        Assert.Empty(store.GetAll());
+    }
+
+    private sealed class PluginFixture : IDisposable
+    {
+        private readonly string _root = Path.Combine(Path.GetTempPath(), "jfmcp-tests-" + Guid.NewGuid().ToString("N"));
+
+        public PluginFixture()
+        {
+            Directory.CreateDirectory(_root);
+            var paths = new Mock<IApplicationPaths>();
+            paths.SetupGet(p => p.PluginConfigurationsPath).Returns(_root);
+            paths.SetupGet(p => p.PluginsPath).Returns(_root);
+            var xml = new Mock<IXmlSerializer>();
+            xml.Setup(x => x.DeserializeFromFile(It.IsAny<Type>(), It.IsAny<string>())).Returns(() => new PluginConfiguration());
+            Plugin = new Plugin(paths.Object, xml.Object);
+        }
+
+        public Plugin Plugin { get; }
+
+        public void Dispose() => Directory.Delete(_root, true);
     }
 }

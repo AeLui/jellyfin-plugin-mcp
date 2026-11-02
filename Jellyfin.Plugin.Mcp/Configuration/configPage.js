@@ -1,0 +1,253 @@
+// Controller for the MCP Server dashboard page. Jellyfin loads it through the page's data-controller
+// attribute (the pattern used by jellyfin-plugin-webhook). All user-controlled strings are rendered
+// with textContent, and secrets are never written to the console or to browser storage.
+const PLUGIN_ID = '08dd6fbf-c026-48c9-9405-824c3906df09';
+const TOKENS_PATH = 'McpServer/Tokens';
+
+export default function (view) {
+    const $ = (id) => view.querySelector('#' + id);
+
+    let users = [];
+
+    function endpointUrl() {
+        return ApiClient.serverAddress().replace(/\/+$/, '') + '/mcp';
+    }
+
+    function formatDate(value) {
+        return value ? new Date(value).toLocaleString() : '-';
+    }
+
+    function cell(row, text) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        row.appendChild(td);
+        return td;
+    }
+
+    async function copyText(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (e) {
+            // fall through to the legacy path
+        }
+
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        let ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch (e) {
+            ok = false;
+        }
+
+        area.remove();
+        return ok;
+    }
+
+    function toast(message) {
+        Dashboard.alert(message);
+    }
+
+    async function copyFrom(textarea) {
+        textarea.select();
+        if (!(await copyText(textarea.value))) {
+            toast('Copy failed. Select the text and copy it manually.');
+        }
+    }
+
+    function tokenRequest(type, url, body) {
+        const options = { type: type, url: ApiClient.getUrl(url) };
+        if (body !== undefined) {
+            options.data = JSON.stringify(body);
+            options.contentType = 'application/json';
+        }
+
+        if (type !== 'DELETE') {
+            options.dataType = 'json';
+        }
+
+        return ApiClient.ajax(options);
+    }
+
+    function renderTokens(tokens) {
+        const body = $('mcpTokenRows');
+        body.textContent = '';
+        $('mcpNoTokens').hidden = tokens.length > 0;
+
+        tokens.forEach((token) => {
+            const row = document.createElement('tr');
+            cell(row, token.Name);
+            cell(row, token.UserName || '(deleted user)');
+            cell(row, (token.Scopes || []).join(', '));
+            cell(row, token.Prefix + '...');
+            cell(row, formatDate(token.CreatedAt));
+            cell(row, formatDate(token.LastUsedAt));
+            cell(row, token.ExpiresAt ? formatDate(token.ExpiresAt) : 'never');
+            cell(row, token.Enabled ? 'yes' : 'no');
+
+            const actions = document.createElement('td');
+            const revoke = document.createElement('button');
+            revoke.type = 'button';
+            revoke.className = 'raised button emby-button';
+            revoke.textContent = 'Revoke';
+            revoke.addEventListener('click', () => revokeToken(token));
+            actions.appendChild(revoke);
+            row.appendChild(actions);
+            body.appendChild(row);
+        });
+    }
+
+    async function loadTokens() {
+        renderTokens(await tokenRequest('GET', TOKENS_PATH));
+    }
+
+    async function revokeToken(token) {
+        // window.confirm renders plain text only, so the token name cannot inject markup.
+        if (!window.confirm('Revoke token "' + token.Name + '"? Clients using it will stop working immediately.')) {
+            return;
+        }
+
+        Dashboard.showLoadingMsg();
+        try {
+            await tokenRequest('DELETE', TOKENS_PATH + '/' + encodeURIComponent(token.Id));
+            await loadTokens();
+        } catch (e) {
+            toast('Could not revoke the token.');
+        } finally {
+            Dashboard.hideLoadingMsg();
+        }
+    }
+
+    function updateAdminScope() {
+        const user = users.find((u) => u.Id === $('mcpTokenUser').value);
+        const isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+        const box = $('mcpScopeAdmin');
+        box.disabled = !isAdmin;
+        if (!isAdmin) {
+            box.checked = false;
+        }
+    }
+
+    function fillUsers() {
+        const select = $('mcpTokenUser');
+        select.textContent = '';
+        users.forEach((user) => {
+            const option = document.createElement('option');
+            option.value = user.Id;
+            option.textContent = user.Name;
+            select.appendChild(option);
+        });
+        updateAdminScope();
+    }
+
+    function clearTokenDialog() {
+        $('mcpDlgToken').value = '';
+        $('mcpDlgCode').value = '';
+        $('mcpDlgDesktop').value = '';
+    }
+
+    function showTokenDialog(plaintext) {
+        const url = endpointUrl();
+        const header = 'Authorization: Bearer ' + plaintext;
+        $('mcpDlgToken').value = plaintext;
+        $('mcpDlgCode').value = 'claude mcp add --transport http jellyfin ' + url + ' --header "' + header + '"';
+        $('mcpDlgDesktop').value = JSON.stringify({
+            mcpServers: {
+                jellyfin: {
+                    command: 'npx',
+                    args: ['-y', 'mcp-remote', url, '--header', header]
+                }
+            }
+        });
+        $('mcpTokenDialog').showModal();
+    }
+
+    async function createToken(event) {
+        event.preventDefault();
+        const scopes = Array.from(view.querySelectorAll('#mcpScopes input[type=checkbox]'))
+            .filter((box) => box.checked && !box.disabled)
+            .map((box) => box.dataset.scope);
+        if (scopes.length === 0) {
+            toast('Select at least one scope.');
+            return;
+        }
+
+        const expiry = $('mcpTokenExpiry').value;
+        Dashboard.showLoadingMsg();
+        try {
+            const created = await tokenRequest('POST', TOKENS_PATH, {
+                Name: $('mcpTokenName').value.trim(),
+                UserId: $('mcpTokenUser').value,
+                Scopes: scopes,
+                ExpiresInDays: expiry === '' ? null : parseInt(expiry, 10)
+            });
+            $('mcpTokenName').value = '';
+            await loadTokens();
+            showTokenDialog(created.Plaintext);
+        } catch (e) {
+            toast('Could not create the token. Check the name, user and scopes.');
+        } finally {
+            Dashboard.hideLoadingMsg();
+        }
+    }
+
+    async function saveSettings(event) {
+        event.preventDefault();
+        Dashboard.showLoadingMsg();
+        try {
+            // Fetch the current configuration and change only the settings fields. Tokens are managed
+            // exclusively through McpServer/Tokens and are never sent back (the server ignores them anyway).
+            const config = await ApiClient.getPluginConfiguration(PLUGIN_ID);
+            delete config.Tokens;
+            config.Enabled = $('mcpEnabled').checked;
+            config.MaxPageSize = Math.min(1000, Math.max(1, parseInt($('mcpMaxPageSize').value, 10) || 100));
+            config.LogToolCalls = $('mcpLogToolCalls').checked;
+            Dashboard.processPluginConfigurationUpdateResult(await ApiClient.updatePluginConfiguration(PLUGIN_ID, config));
+        } catch (e) {
+            Dashboard.hideLoadingMsg();
+            toast('Could not save the settings.');
+        }
+    }
+
+    async function load() {
+        Dashboard.showLoadingMsg();
+        try {
+            $('mcpEndpointUrl').value = endpointUrl();
+            const [config, userList] = await Promise.all([
+                ApiClient.getPluginConfiguration(PLUGIN_ID),
+                ApiClient.getUsers()
+            ]);
+            $('mcpEnabled').checked = config.Enabled;
+            $('mcpMaxPageSize').value = config.MaxPageSize;
+            $('mcpLogToolCalls').checked = config.LogToolCalls;
+            users = userList;
+            fillUsers();
+            await loadTokens();
+        } catch (e) {
+            toast('Could not load the MCP Server configuration.');
+        } finally {
+            Dashboard.hideLoadingMsg();
+        }
+    }
+
+    $('mcpSettingsForm').addEventListener('submit', saveSettings);
+    $('mcpTokenForm').addEventListener('submit', createToken);
+    $('mcpTokenUser').addEventListener('change', updateAdminScope);
+    $('mcpCopyUrl').addEventListener('click', () => copyFrom($('mcpEndpointUrl')));
+    $('mcpCopyToken').addEventListener('click', () => copyFrom($('mcpDlgToken')));
+    $('mcpCopyCode').addEventListener('click', () => copyFrom($('mcpDlgCode')));
+    $('mcpCopyDesktop').addEventListener('click', () => copyFrom($('mcpDlgDesktop')));
+    $('mcpCloseDialog').addEventListener('click', () => {
+        clearTokenDialog();
+        $('mcpTokenDialog').close();
+    });
+    $('mcpTokenDialog').addEventListener('cancel', clearTokenDialog);
+    view.addEventListener('viewshow', load);
+}

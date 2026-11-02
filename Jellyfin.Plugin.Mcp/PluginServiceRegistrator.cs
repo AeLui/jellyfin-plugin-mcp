@@ -30,7 +30,8 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ITokenStore>(sp => new TokenStore(
             GetConfiguration,
             Save,
-            sp.GetRequiredService<IClock>()));
+            sp.GetRequiredService<IClock>(),
+            Plugin.ConfigurationLock));
         serviceCollection.AddSingleton(sp => new AuthFailureLimiter(sp.GetRequiredService<IClock>()));
         serviceCollection.AddSingleton(sp => new TokenAuthenticator(
             sp.GetRequiredService<ITokenStore>(),
@@ -72,5 +73,5 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         => Plugin.Instance?.Configuration ?? throw new PluginNotReadyException();
 
     private static void Save(PluginConfiguration configuration)
-        => (Plugin.Instance ?? throw new PluginNotReadyException()).UpdateConfiguration(configuration);
+        => (Plugin.Instance ?? throw new PluginNotReadyException()).SaveConfigurationWithTokens(configuration);
 }

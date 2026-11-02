@@ -16,7 +16,7 @@ public sealed class TokenStore : ITokenStore
     private readonly Func<PluginConfiguration> _getConfig;
     private readonly Action<PluginConfiguration> _saveConfig;
     private readonly IClock _clock;
-    private readonly object _lock = new();
+    private readonly object _lock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TokenStore"/> class.
@@ -24,8 +24,10 @@ public sealed class TokenStore : ITokenStore
     /// <param name="getConfig">Gets the current configuration.</param>
     /// <param name="saveConfig">Persists the configuration.</param>
     /// <param name="clock">The clock.</param>
-    public TokenStore(Func<PluginConfiguration> getConfig, Action<PluginConfiguration> saveConfig, IClock clock)
+    /// <param name="syncRoot">The lock shared with other writers of the configuration, or null for a private one.</param>
+    public TokenStore(Func<PluginConfiguration> getConfig, Action<PluginConfiguration> saveConfig, IClock clock, object? syncRoot = null)
     {
+        _lock = syncRoot ?? new object();
         _getConfig = getConfig;
         _saveConfig = saveConfig;
         _clock = clock;

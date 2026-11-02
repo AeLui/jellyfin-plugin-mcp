@@ -1,13 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
     <title>MCP Server</title>
 </head>
 <body>
-    <div id="McpServerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button">
+    <div id="McpServerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select" data-controller="__plugin/McpServerJs">
         <div data-role="content">
             <div class="content-primary">
-                <p>MCP Server configuration (placeholder).</p>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Status</h2>
+                    <form id="mcpSettingsForm">
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mcpEnabled" type="checkbox" is="emby-checkbox" />
+                                <span>Enable MCP endpoint</span>
+                            </label>
+                        </div>
+                        <div class="inputContainer">
+                            <input id="mcpEndpointUrl" type="text" is="emby-input" label="Endpoint URL" readonly="readonly" />
+                            <div class="fieldDescription">Point your MCP client at this URL.</div>
+                        </div>
+                        <button id="mcpCopyUrl" is="emby-button" type="button" class="raised block emby-button">
+                            <span>Copy URL</span>
+                        </button>
+                        <div class="fieldDescription">
+                            Security note: tokens grant access to your library. Use the endpoint only on a trusted LAN or VPN,
+                            and put Jellyfin behind HTTPS if it is reachable from the internet.
+                        </div>
+
+                        <h2 class="sectionTitle">Settings</h2>
+                        <div class="inputContainer">
+                            <input id="mcpMaxPageSize" type="number" is="emby-input" min="1" max="1000" step="1" label="Max page size" />
+                            <div class="fieldDescription">Upper limit for the number of results returned by list tools (default 100).</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mcpLogToolCalls" type="checkbox" is="emby-checkbox" />
+                                <span>Log tool calls</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Writes one log line per tool call (tool name, user, duration, outcome; never arguments or tokens).</div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save settings</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Tokens</h2>
+                    <div style="overflow-x: auto;">
+                        <table class="detailTable" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>User</th>
+                                    <th>Scopes</th>
+                                    <th>Prefix</th>
+                                    <th>Created</th>
+                                    <th>Last used</th>
+                                    <th>Expires</th>
+                                    <th>Enabled</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="mcpTokenRows"></tbody>
+                        </table>
+                    </div>
+                    <p id="mcpNoTokens" class="fieldDescription" hidden>No tokens yet.</p>
+
+                    <h3>New token</h3>
+                    <form id="mcpTokenForm">
+                        <div class="inputContainer">
+                            <input id="mcpTokenName" type="text" is="emby-input" label="Name" required="required" maxlength="100" />
+                        </div>
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="mcpTokenUser">User</label>
+                            <select is="emby-select" id="mcpTokenUser" class="emby-select-withcolor emby-select"></select>
+                        </div>
+                        <div id="mcpScopes">
+                            <div class="checkboxContainer">
+                                <label class="emby-checkbox-label">
+                                    <input type="checkbox" is="emby-checkbox" data-scope="library" checked="checked" />
+                                    <span>library (browse and search)</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label class="emby-checkbox-label">
+                                    <input type="checkbox" is="emby-checkbox" data-scope="playback" />
+                                    <span>playback (control sessions)</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label class="emby-checkbox-label">
+                                    <input type="checkbox" is="emby-checkbox" data-scope="manage" />
+                                    <span>manage (playlists, favorites, played state)</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label class="emby-checkbox-label">
+                                    <input type="checkbox" is="emby-checkbox" data-scope="admin" id="mcpScopeAdmin" />
+                                    <span>admin (server tasks, users; administrators only)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="mcpTokenExpiry">Expires</label>
+                            <select is="emby-select" id="mcpTokenExpiry" class="emby-select-withcolor emby-select">
+                                <option value="">Never</option>
+                                <option value="30">In 30 days</option>
+                                <option value="90">In 90 days</option>
+                                <option value="365">In 1 year</option>
+                            </select>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Create token</span>
+                        </button>
+                    </form>
+                </div>
+
+                <dialog id="mcpTokenDialog" style="max-width: 90vw; width: 50em;">
+                    <h2>Token created</h2>
+                    <p><strong>Copy it now. It will not be shown again.</strong></p>
+                    <label for="mcpDlgToken">Token</label>
+                    <textarea id="mcpDlgToken" rows="2" readonly="readonly" style="width: 100%;"></textarea>
+                    <button id="mcpCopyToken" is="emby-button" type="button" class="raised block emby-button"><span>Copy token</span></button>
+                    <label for="mcpDlgCode">Claude Code</label>
+                    <textarea id="mcpDlgCode" rows="3" readonly="readonly" style="width: 100%;"></textarea>
+                    <button id="mcpCopyCode" is="emby-button" type="button" class="raised block emby-button"><span>Copy Claude Code command</span></button>
+                    <label for="mcpDlgDesktop">Claude Desktop (claude_desktop_config.json, requires Node.js)</label>
+                    <textarea id="mcpDlgDesktop" rows="4" readonly="readonly" style="width: 100%;"></textarea>
+                    <button id="mcpCopyDesktop" is="emby-button" type="button" class="raised block emby-button"><span>Copy Claude Desktop config</span></button>
+                    <button id="mcpCloseDialog" is="emby-button" type="button" class="raised button-submit block emby-button"><span>Close</span></button>
+                </dialog>
+
             </div>
         </div>
     </div>
