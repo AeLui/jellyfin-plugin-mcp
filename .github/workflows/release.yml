@@ -76,7 +76,7 @@ jobs:
             --target-abi 12.4.0.0 \
             --source-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ZIP}" \
             --checksum "$CHECKSUM" \
-            --changelog "$CHANGELOG" \
+            --changelog="$CHANGELOG" \
             --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           if git diff --quiet -- manifest.json; then
             echo "manifest.json already up to date"
