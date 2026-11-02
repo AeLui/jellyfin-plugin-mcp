@@ -16,24 +16,22 @@ public sealed class JsonRpcDispatcher
 
     private readonly ToolRegistry _registry;
     private readonly McpServerInfo _info;
+    private readonly Action<string, Exception>? _onToolFailure;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonRpcDispatcher"/> class.
     /// </summary>
     /// <param name="registry">The tool registry.</param>
     /// <param name="info">The server identity.</param>
-    public JsonRpcDispatcher(ToolRegistry registry, McpServerInfo info)
+    /// <param name="onToolFailure">Optional hook invoked with the tool name and the exception when a tool throws an unexpected exception.</param>
+    public JsonRpcDispatcher(ToolRegistry registry, McpServerInfo info, Action<string, Exception>? onToolFailure = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(info);
         _registry = registry;
         _info = info;
+        _onToolFailure = onToolFailure;
     }
-
-    /// <summary>
-    /// Gets the tool registry.
-    /// </summary>
-    internal ToolRegistry Registry => _registry;
 
     /// <summary>
     /// Dispatches one HTTP request body (a single message or a batch).
@@ -42,7 +40,7 @@ public sealed class JsonRpcDispatcher
     /// <param name="principal">The authenticated caller.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The status code and optional response body.</returns>
-    public Task<DispatchResult> DispatchAsync(ReadOnlyMemory<byte> body, McpPrincipal principal, CancellationToken ct)
+    public async Task<DispatchResult> DispatchAsync(ReadOnlyMemory<byte> body, McpPrincipal principal, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(principal);
         ct.ThrowIfCancellationRequested();
@@ -54,7 +52,7 @@ public sealed class JsonRpcDispatcher
         }
         catch (JsonException)
         {
-            return Task.FromResult(Error(default, JsonRpcErrorCodes.ParseError, "Parse error"));
+            return Error(default, JsonRpcErrorCodes.ParseError, "Parse error");
         }
 
         using (document)
@@ -62,20 +60,20 @@ public sealed class JsonRpcDispatcher
             var root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Array)
             {
-                return Task.FromResult(DispatchBatch(root, principal));
+                return await DispatchBatchAsync(root, principal, ct).ConfigureAwait(false);
             }
 
-            var response = HandleMessage(root, principal);
-            return Task.FromResult(response is null
+            var response = await HandleMessageAsync(root, principal, ct).ConfigureAwait(false);
+            return response is null
                 ? new DispatchResult(202, null)
-                : new DispatchResult(200, Encoding.UTF8.GetString(response)));
+                : new DispatchResult(200, Encoding.UTF8.GetString(response));
         }
     }
 
     private static DispatchResult Error(JsonElement id, int code, string message)
         => new(200, Encoding.UTF8.GetString(JsonRpcMessages.Error(id, code, message)));
 
-    private DispatchResult DispatchBatch(JsonElement batch, McpPrincipal principal)
+    private async Task<DispatchResult> DispatchBatchAsync(JsonElement batch, McpPrincipal principal, CancellationToken ct)
     {
         if (batch.GetArrayLength() == 0)
         {
@@ -85,7 +83,7 @@ public sealed class JsonRpcDispatcher
         var responses = new List<string>();
         foreach (var message in batch.EnumerateArray())
         {
-            var response = HandleMessage(message, principal);
+            var response = await HandleMessageAsync(message, principal, ct).ConfigureAwait(false);
             if (response is not null)
             {
                 responses.Add(Encoding.UTF8.GetString(response));
@@ -100,7 +98,7 @@ public sealed class JsonRpcDispatcher
     /// <summary>
     /// Handles one message; returns null when no response is due (notification).
     /// </summary>
-    private byte[]? HandleMessage(JsonElement message, McpPrincipal principal)
+    private async Task<byte[]?> HandleMessageAsync(JsonElement message, McpPrincipal principal, CancellationToken ct)
     {
         if (message.ValueKind != JsonValueKind.Object)
         {
@@ -143,8 +141,14 @@ public sealed class JsonRpcDispatcher
                     writer.WriteStartObject();
                     writer.WriteEndObject();
                 }),
+                "tools/list" => JsonRpcMessages.Success(responseId, writer => WriteToolsList(writer, principal)),
+                "tools/call" => await HandleToolsCallAsync(responseId, parameters, principal, ct).ConfigureAwait(false),
                 _ => JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.MethodNotFound, "Method not found: " + method),
             };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
 #pragma warning disable CA1031 // A handler failure must become a JSON-RPC error, not an HTTP 500.
         catch (Exception)
@@ -152,6 +156,78 @@ public sealed class JsonRpcDispatcher
         {
             return JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.InternalError, "Internal error");
         }
+    }
+
+    private void WriteToolsList(Utf8JsonWriter writer, McpPrincipal principal)
+    {
+        writer.WriteStartObject();
+        writer.WriteStartArray("tools");
+        foreach (var tool in _registry.ListFor(principal))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("name", tool.Name);
+            writer.WriteString("description", tool.Description);
+            writer.WritePropertyName("inputSchema");
+            tool.InputSchema.WriteTo(writer);
+            writer.WritePropertyName("annotations");
+            JsonSerializer.Serialize(writer, tool.Annotations);
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
+    private async Task<byte[]> HandleToolsCallAsync(JsonElement id, JsonElement parameters, McpPrincipal principal, CancellationToken ct)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object
+            || !parameters.TryGetProperty("name", out var nameElement)
+            || nameElement.ValueKind != JsonValueKind.String)
+        {
+            return JsonRpcMessages.Error(id, JsonRpcErrorCodes.InvalidParams, "Invalid params: 'name' is required");
+        }
+
+        var name = nameElement.GetString()!;
+        var tool = _registry.Find(name, principal);
+        if (tool is null)
+        {
+            return JsonRpcMessages.Error(id, JsonRpcErrorCodes.InvalidParams, "Unknown tool: " + name);
+        }
+
+        parameters.TryGetProperty("arguments", out var argumentsElement);
+        ToolResult result;
+        try
+        {
+            result = await tool.ExecuteAsync(new ToolArguments(argumentsElement), principal, ct).ConfigureAwait(false);
+        }
+        catch (ToolException ex)
+        {
+            result = ToolResult.Error(ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // An unexpected tool failure must become an isError result, without leaking details.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _onToolFailure?.Invoke(name, ex);
+            result = ToolResult.Error("Internal error while running " + name);
+        }
+
+        return JsonRpcMessages.Success(id, writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteStartArray("content");
+            writer.WriteStartObject();
+            writer.WriteString("type", "text");
+            writer.WriteString("text", result.Text);
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+            writer.WriteBoolean("isError", result.IsError);
+            writer.WriteEndObject();
+        });
     }
 
     private void WriteInitializeResult(Utf8JsonWriter writer, JsonElement parameters)
