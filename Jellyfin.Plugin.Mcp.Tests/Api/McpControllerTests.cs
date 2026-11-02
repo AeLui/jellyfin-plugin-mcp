@@ -151,6 +151,7 @@ public class McpControllerTests
         services.AddSingleton(new Mock<IUserDataManager>().Object);
         services.AddSingleton(new Mock<IUserViewManager>().Object);
         services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object);
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });

@@ -104,6 +104,26 @@ public sealed class ToolArguments
     }
 
     /// <summary>
+    /// Gets an optional number argument.
+    /// </summary>
+    /// <param name="name">The argument name.</param>
+    /// <returns>The value, or <c>null</c> when absent.</returns>
+    public double? GetDouble(string name)
+    {
+        if (!TryGet(name, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Number || !element.TryGetDouble(out var value))
+        {
+            throw Invalid(name, "must be a number");
+        }
+
+        return value;
+    }
+
+    /// <summary>
     /// Gets an optional boolean argument.
     /// </summary>
     /// <param name="name">The argument name.</param>

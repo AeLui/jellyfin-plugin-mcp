@@ -5,6 +5,7 @@ using Jellyfin.Plugin.Mcp.Auth;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tools;
+using Jellyfin.Plugin.Mcp.Tools.Playback;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
@@ -39,6 +40,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(McpServerInfo.FromAssembly());
         serviceCollection.AddSingleton<IPluginSettings, PluginSettings>();
         serviceCollection.AddSingleton<ItemLookup>();
+        serviceCollection.AddSingleton<SessionResolver>();
 
         foreach (var toolType in typeof(PluginServiceRegistrator).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IMcpTool).IsAssignableFrom(t)))
