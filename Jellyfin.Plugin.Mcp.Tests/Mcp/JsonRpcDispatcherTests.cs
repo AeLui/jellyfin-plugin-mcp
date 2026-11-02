@@ -319,4 +319,63 @@ public class JsonRpcDispatcherTests
         Assert.Equal(-32600, root.GetProperty("error").GetProperty("code").GetInt32());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("id").ValueKind);
     }
+
+    [Fact]
+    public async Task ToolsCall_InternalTimeout_BecomesErrorResultAndReachesHook()
+    {
+        Exception? logged = null;
+        var dispatcher = WithTool(
+            new FakeTool("jellyfin_t", McpScopes.Library, (_, _) => throw new OperationCanceledException("internal timeout")),
+            (_, ex) => logged = ex);
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t"}}""");
+
+        Assert.Equal(200, result.StatusCode);
+        Assert.True(Parse(result).GetProperty("result").GetProperty("isError").GetBoolean());
+        Assert.IsType<OperationCanceledException>(logged);
+    }
+
+    [Fact]
+    public async Task ToolsCall_ThrowingFailureHook_StillReturnsErrorResult()
+    {
+        var dispatcher = WithTool(
+            new FakeTool("jellyfin_t", McpScopes.Library, (_, _) => throw new InvalidOperationException("boom")),
+            (_, _) => throw new InvalidOperationException("hook broke"));
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t"}}""");
+
+        var root = Parse(result);
+        Assert.False(root.TryGetProperty("error", out _));
+        Assert.True(root.GetProperty("result").GetProperty("isError").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ToolsCall_CallHook_ReportsNameUserAndOutcome()
+    {
+        var calls = new System.Collections.Generic.List<ToolCallLog>();
+        var tool = new FakeTool("jellyfin_t", McpScopes.Library);
+        var dispatcher = new JsonRpcDispatcher(new ToolRegistry(new IMcpTool[] { tool }), new McpServerInfo("jellyfin-mcp", "1"), null, calls.Add);
+
+        await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t","arguments":{"q":"secret"}}}""");
+
+        var call = Assert.Single(calls);
+        Assert.Equal("jellyfin_t", call.ToolName);
+        Assert.Equal(LibraryPrincipal.UserId, call.UserId);
+        Assert.False(call.IsError);
+    }
+
+    [Fact]
+    public async Task ToolsCall_ThrowingCallHook_DoesNotFailTheCall()
+    {
+        var tool = new FakeTool("jellyfin_t", McpScopes.Library);
+        var dispatcher = new JsonRpcDispatcher(
+            new ToolRegistry(new IMcpTool[] { tool }),
+            new McpServerInfo("jellyfin-mcp", "1"),
+            null,
+            _ => throw new InvalidOperationException("hook broke"));
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t"}}""");
+
+        Assert.False(Parse(result).GetProperty("result").GetProperty("isError").GetBoolean());
+    }
 }

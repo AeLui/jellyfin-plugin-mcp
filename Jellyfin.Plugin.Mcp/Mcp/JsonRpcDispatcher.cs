@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,6 +18,7 @@ public sealed class JsonRpcDispatcher
     private readonly ToolRegistry _registry;
     private readonly McpServerInfo _info;
     private readonly Action<string, Exception>? _onToolFailure;
+    private readonly Action<ToolCallLog>? _onToolCall;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonRpcDispatcher"/> class.
@@ -24,13 +26,19 @@ public sealed class JsonRpcDispatcher
     /// <param name="registry">The tool registry.</param>
     /// <param name="info">The server identity.</param>
     /// <param name="onToolFailure">Optional hook invoked with the tool name and the exception when a tool throws an unexpected exception.</param>
-    public JsonRpcDispatcher(ToolRegistry registry, McpServerInfo info, Action<string, Exception>? onToolFailure = null)
+    /// <param name="onToolCall">Optional hook invoked after every <c>tools/call</c> that reached a tool; it never receives arguments.</param>
+    public JsonRpcDispatcher(
+        ToolRegistry registry,
+        McpServerInfo info,
+        Action<string, Exception>? onToolFailure = null,
+        Action<ToolCallLog>? onToolCall = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(info);
         _registry = registry;
         _info = info;
         _onToolFailure = onToolFailure;
+        _onToolCall = onToolCall;
     }
 
     /// <summary>
@@ -146,7 +154,7 @@ public sealed class JsonRpcDispatcher
                 _ => JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.MethodNotFound, "Method not found: " + method),
             };
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
@@ -155,6 +163,22 @@ public sealed class JsonRpcDispatcher
 #pragma warning restore CA1031
         {
             return JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.InternalError, "Internal error");
+        }
+    }
+
+    /// <summary>
+    /// Runs an observer hook; a failing hook must never change the outcome of the call.
+    /// </summary>
+    private static void SafeInvoke(Action hook)
+    {
+        try
+        {
+            hook();
+        }
+#pragma warning disable CA1031 // Observer failures are deliberately swallowed.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
         }
     }
 
@@ -196,6 +220,7 @@ public sealed class JsonRpcDispatcher
 
         parameters.TryGetProperty("arguments", out var argumentsElement);
         ToolResult result;
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             result = await tool.ExecuteAsync(new ToolArguments(argumentsElement), principal, ct).ConfigureAwait(false);
@@ -204,7 +229,7 @@ public sealed class JsonRpcDispatcher
         {
             result = ToolResult.Error(ex.Message);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
@@ -212,9 +237,12 @@ public sealed class JsonRpcDispatcher
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            _onToolFailure?.Invoke(name, ex);
+            SafeInvoke(() => _onToolFailure?.Invoke(name, ex));
             result = ToolResult.Error("Internal error while running " + name);
         }
+
+        stopwatch.Stop();
+        SafeInvoke(() => _onToolCall?.Invoke(new ToolCallLog(name, principal.UserId, stopwatch.Elapsed, result.IsError)));
 
         return JsonRpcMessages.Success(id, writer =>
         {

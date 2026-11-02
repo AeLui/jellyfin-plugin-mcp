@@ -1,0 +1,28 @@
+using System.Text.Json;
+using Jellyfin.Plugin.Mcp.Mcp;
+using Xunit;
+
+namespace Jellyfin.Plugin.Mcp.Tests.Mcp;
+
+public class ToolResultTests
+{
+    [Fact]
+    public void Json_KeepsAccentedAndCjkTextUnescaped()
+    {
+        var result = ToolResult.Json(new { Title = "Amélie", Other = "千と千尋の神隠し" });
+
+        Assert.Contains("Amélie", result.Text, System.StringComparison.Ordinal);
+        Assert.Contains("千と千尋の神隠し", result.Text, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("\\u", result.Text, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Json_UsesCamelCaseAndOmitsNulls()
+    {
+        var result = ToolResult.Json(new { ItemName = "x", Missing = (string?)null });
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal("x", doc.RootElement.GetProperty("itemName").GetString());
+        Assert.False(doc.RootElement.TryGetProperty("missing", out _));
+    }
+}
