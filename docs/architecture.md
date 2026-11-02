@@ -49,7 +49,7 @@ Rule: `Mcp/` must not reference any `Jellyfin.*` or `MediaBrowser.*` namespace. 
 
 - **Hand-written transport.** The official SDKs would add runtime dependencies to a plugin loaded into Jellyfin's process, with version-conflict risk. The needed protocol subset is small.
 - **Stateless.** Fits Jellyfin's plugin model and horizontal simplicity: nothing to expire, nothing to leak between users, no sticky routing.
-- **Static bearer tokens (v1).** Works with Claude Code and Claude Desktop (via `mcp-remote`). OAuth 2.1 for claude.ai connectors is the v2 goal.
+- **Static bearer tokens (v1).** Works with Claude Code (supported); Claude Desktop via `mcp-remote` is expected to work but is not yet verified. OAuth 2.1 for claude.ai connectors is the v2 goal.
 - **Principal per request.** No cached identity, so revocation and demotion are immediate.
 - **User-aware lookups.** Every id goes through `ItemLookup.GetVisible`, which uses the user overload of `GetItemById`. See [security](security.md).
 - **Tokens in plugin config, hashed.** `Plugin.UpdateConfiguration` is overridden so the generic config API cannot change tokens; `TokenStore` writes them through a dedicated method under one lock, so a token created while `LastUsedAt` is being saved is never lost.

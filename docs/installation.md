@@ -3,7 +3,7 @@
 ## Requirements
 
 - Jellyfin 12.x (the plugin targets ABI 12.4.0.0).
-- For Claude Desktop: [Node.js](https://nodejs.org), because the desktop app talks to remote servers through `npx mcp-remote`.
+- For Claude Desktop (expected to work via `mcp-remote`, not yet verified): [Node.js](https://nodejs.org), because the desktop app talks to remote servers through `npx mcp-remote`.
 
 ## Install from the plugin repository
 
@@ -53,7 +53,7 @@ claude mcp add --transport http jellyfin https://jellyfin.example.com/mcp \
 
 Run `/mcp` in Claude Code to check that the server is connected and to see the tool count.
 
-### Claude Desktop
+### Claude Desktop (expected to work, not yet verified)
 
 Edit `claude_desktop_config.json` (Settings > Developer > Edit config):
 

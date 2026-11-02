@@ -7,7 +7,7 @@ A Jellyfin plugin that exposes your server to AI assistants through the [Model C
 - Jellyfin **12.x** only (compiled against 12.4.0, `targetAbi` 12.4.0.0). Older servers are not supported.
 - Built with .NET 10.
 - MCP transport: Streamable HTTP, stateless, `POST /mcp`. Protocol revisions 2025-11-25, 2025-06-18 and 2025-03-26. The stateless 2026-07-28 revision is not supported yet (see the [roadmap](docs/roadmap.md)).
-- Clients that send a static `Authorization: Bearer` header work (Claude Code, Claude Desktop through `mcp-remote`). claude.ai web connectors need OAuth and are not supported yet.
+- Clients that send a static `Authorization: Bearer` header work; Claude Code is the supported client. Claude Desktop through `mcp-remote` is expected to work but is not yet verified. claude.ai web connectors need OAuth and are not supported yet.
 
 ## Install in three steps
 
@@ -52,7 +52,7 @@ The token dialog in the plugin page generates both snippets for you. The Claude 
 |---|---|---|
 | `library` | 9 | Read-only: search, browse, details, people, recent, next up, continue watching, history |
 | `playback` | 4 | List sessions, play, control playback, show a message |
-| `manage` | 4 | Playlists, favorites, played state of the token's own user |
+| `manage` | 4 | The user's own watch state and favorites, plus playlists the user owns or may edit |
 | `admin` | 5 | Users, scheduled tasks, library scan, metadata refresh (administrators only) |
 
 Full reference: [docs/tools.md](docs/tools.md).
