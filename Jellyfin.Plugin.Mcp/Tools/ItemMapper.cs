@@ -71,7 +71,7 @@ public static class ItemMapper
                     Add(person, "name", p.Name);
                     Add(person, "role", string.IsNullOrEmpty(p.Role) ? null : p.Role);
                     Add(person, "type", p.Type.ToString());
-                    Add(person, "id", personIds.TryGetValue(p.Name, out var personId) ? personId.ToString("N", CultureInfo.InvariantCulture) : null);
+                    Add(person, "id", !string.IsNullOrEmpty(p.Name) && personIds.TryGetValue(p.Name, out var personId) ? personId.ToString("N", CultureInfo.InvariantCulture) : null);
                     return person;
                 }).ToList());
         }

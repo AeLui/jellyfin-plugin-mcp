@@ -248,7 +248,12 @@ public class ActivityToolsTests
 
         var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
 
-        var q = Assert.Single(_queries);
+        Assert.Equal(2, _queries.Count);
+        var probe = _queries[0];
+        Assert.Equal(1, probe.Limit);
+        Assert.Equal(0, probe.StartIndex ?? 0);
+        Assert.Equal(new[] { person.Id }, probe.PersonIds);
+        var q = _queries[1];
         Assert.Same(_user, q.User);
         Assert.Equal(new[] { person.Id }, q.PersonIds);
         Assert.Equal((ItemSortBy.SortName, SortOrder.Ascending), Assert.Single(q.OrderBy));
@@ -268,6 +273,8 @@ public class ActivityToolsTests
     {
         var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", PremiereDate = new DateTime(1940, 4, 25, 0, 0, 0, DateTimeKind.Unspecified) };
         _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { new Movie { Id = Guid.NewGuid(), Name = "Heat" } }));
 
         var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
 
@@ -316,7 +323,7 @@ public class ActivityToolsTests
         Assert.Equal("Al Pacino", doc.RootElement.GetProperty("name").GetString());
         Assert.Equal("Actor", doc.RootElement.GetProperty("overview").GetString());
         Assert.Equal("Heat", doc.RootElement.GetProperty("items")[0].GetProperty("name").GetString());
-        var q = Assert.Single(_queries);
+        var q = _queries[^1];
         Assert.Same(_user, q.User);
         Assert.Equal(Guid.Empty, q.ParentId);
         Assert.Empty(q.ItemIds);
@@ -329,13 +336,13 @@ public class ActivityToolsTests
         _library.Setup(l => l.GetPerson("Al Pacino")).Returns(person);
         _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(_queries.Add)
-            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { new Movie { Id = Guid.NewGuid(), Name = "Heat" } }));
 
         var result = await Run(Person(), """{"name":"Al Pacino"}""");
 
         using var doc = JsonDocument.Parse(result.Text);
         Assert.Equal(person.Id.ToString("N"), doc.RootElement.GetProperty("id").GetString());
-        Assert.Equal(new[] { person.Id }, Assert.Single(_queries).PersonIds);
+        Assert.Equal(new[] { person.Id }, _queries[^1].PersonIds);
     }
 
     [Fact]
@@ -351,6 +358,24 @@ public class ActivityToolsTests
         Assert.Equal("Item not found", byId.Message);
         Assert.Equal("Item not found", byName.Message);
         Assert.Empty(_queries);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    public async Task GetPerson_WithNoVisibleItems_ReturnsNotFound(int startIndex)
+    {
+        // The person exists, but every library crediting them is hidden from this user (default query result is empty).
+        var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", Overview = "Actor" };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetPerson("Al Pacino")).Returns(person);
+
+        var byId = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), $$"""{"personId":"{{person.Id}}","startIndex":{{startIndex}}}"""));
+        var byName = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), $$"""{"name":"Al Pacino","startIndex":{{startIndex}}}"""));
+
+        Assert.Equal("Item not found", byId.Message);
+        Assert.Equal("Item not found", byName.Message);
+        Assert.All(_queries, q => Assert.Equal(new[] { person.Id }, q.PersonIds));
     }
 
     [Fact]

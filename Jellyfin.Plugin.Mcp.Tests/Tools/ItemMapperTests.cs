@@ -84,6 +84,16 @@ public class ItemMapperTests
     }
 
     [Fact]
+    public void ItemMapper_Detail_PersonWithoutName_GetsNoId()
+    {
+        var people = new List<PersonInfo> { new() { Name = string.Empty, Type = PersonKind.Actor } };
+
+        var json = Serialize(ItemMapper.Detail(new Movie { Id = Guid.NewGuid(), Name = "X" }, null, people, new Dictionary<string, Guid>()));
+
+        Assert.False(json.GetProperty("people")[0].TryGetProperty("id", out _));
+    }
+
+    [Fact]
     public void ItemMapper_Detail_WithoutPeopleOrGenres_OmitsThem()
     {
         var json = Serialize(ItemMapper.Detail(new Movie { Id = Guid.NewGuid(), Name = "X" }, null, Array.Empty<PersonInfo>(), new Dictionary<string, Guid>()));

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
@@ -72,18 +73,14 @@ public sealed class GetPersonTool : LibraryToolBase
         // items below come from a user-scoped query, so library access still applies.
         var person = personId is { } id ? _lookup.GetVisiblePerson(user, id) : _lookup.GetVisiblePerson(user, name!);
 
-        // PersonIds without ParentId/ItemIds: ILibraryManager adds the user's library access to the query.
-        var query = new InternalItemsQuery(user)
+        // Person ids are deterministic from names, so a person is only revealed when the user can see at least one of
+        // their items; otherwise (whatever startIndex is) the person looks exactly like an unknown one.
+        if (_libraryManager.GetVisibleItemsResult(PersonQuery(user, person, 0, 1)).Items.Count == 0)
         {
-            PersonIds = [person.Id],
-            ExcludeItemTypes = VisibleItems.ExcludedKinds(),
-            Recursive = true,
-            StartIndex = startIndex,
-            Limit = limit,
-            EnableTotalRecordCount = true,
-            OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.SortName, SortOrder.Ascending) },
-        };
-        var items = _libraryManager.GetVisibleItemsResult(query);
+            throw new ToolException("Item not found");
+        }
+
+        var items = _libraryManager.GetVisibleItemsResult(PersonQuery(user, person, startIndex, limit));
 
         var result = new Dictionary<string, object>
         {
@@ -104,4 +101,17 @@ public sealed class GetPersonTool : LibraryToolBase
 
         return Task.FromResult(ToolResult.Json(result));
     }
+
+    // PersonIds without ParentId/ItemIds: ILibraryManager adds the user's library access to the query.
+    private static InternalItemsQuery PersonQuery(User user, Person person, int startIndex, int limit)
+        => new(user)
+        {
+            PersonIds = [person.Id],
+            ExcludeItemTypes = VisibleItems.ExcludedKinds(),
+            Recursive = true,
+            StartIndex = startIndex,
+            Limit = limit,
+            EnableTotalRecordCount = true,
+            OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.SortName, SortOrder.Ascending) },
+        };
 }

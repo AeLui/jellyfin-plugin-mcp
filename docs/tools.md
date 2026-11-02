@@ -114,7 +114,7 @@ Get a person (actor, director, ...) by id or name, with the items of theirs that
 | `name` | string | one of | | Exact person name. |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging of the items list. |
 
-Either `personId` or `name` is required. People belong to no library, so only the person's parental visibility is checked (as Jellyfin's own person lookup does); the `items` list is always limited to what the user can see. A person may be returned with metadata but an empty `items` list when none of their work is visible to the user.
+Either `personId` or `name` is required. People belong to no library, so only the person's parental visibility is checked (as Jellyfin's own person lookup does); the `items` list is always limited to what the user can see. A person is returned only if the user can see at least one of their items; otherwise the result is `Item not found`, the same as for an unknown person.
 
 ```json
 {"name":"jellyfin_get_person","arguments":{"name":"Harrison Ford","limit":2}}

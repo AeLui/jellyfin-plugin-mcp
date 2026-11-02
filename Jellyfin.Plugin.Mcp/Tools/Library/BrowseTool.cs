@@ -128,8 +128,11 @@ public sealed class BrowseTool : LibraryToolBase
                 break;
         }
 
-        // Folder.GetItems drops children the user cannot see (IsVisible per child, IsVisibleStandalone for the
-        // playlist/collection queries), so no extra VisibleItems filtering is needed on this path.
+        // Visibility guarantee comes from Jellyfin, not from this plugin (v12.4): Folder.GetItemsInternal builds the child
+        // list with GetChildren(user) / AddChildren, which keeps only children with IsVisible(user) and resolves linked
+        // children with GetLinkedChildren(user) (Playlist and BoxSet override IsVisible with owner/share/library rules),
+        // and the Playlist/BoxSet type queries run through QueryWithPostFiltering (IsVisibleStandalone(user)). So no extra
+        // VisibleItems filtering is needed here; the in-repo tests only prove delegation, see the manual checklist.
         var result = parent.GetItems(query);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
