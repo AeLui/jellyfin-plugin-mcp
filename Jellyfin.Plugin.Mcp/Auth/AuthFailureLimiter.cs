@@ -11,8 +11,11 @@ public sealed class AuthFailureLimiter
 {
     private readonly IClock _clock;
     private readonly int _maxFailures;
+    private readonly int _maxTrackedAddresses;
     private readonly TimeSpan _window;
     private readonly ConcurrentDictionary<string, Queue<DateTime>> _failures = new(StringComparer.Ordinal);
+    private readonly object _sweepLock = new();
+    private DateTime _lastSweep;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthFailureLimiter"/> class.
@@ -20,12 +23,23 @@ public sealed class AuthFailureLimiter
     /// <param name="clock">The clock.</param>
     /// <param name="maxFailures">Failures allowed within the window before blocking.</param>
     /// <param name="window">The sliding window; one minute when null.</param>
-    public AuthFailureLimiter(IClock clock, int maxFailures = 10, TimeSpan? window = null)
+    /// <param name="maxTrackedAddresses">
+    /// Upper bound on tracked addresses. When it is reached and a sweep frees nothing,
+    /// addresses not yet tracked are treated as blocked (fail closed) instead of growing memory.
+    /// </param>
+    public AuthFailureLimiter(IClock clock, int maxFailures = 10, TimeSpan? window = null, int maxTrackedAddresses = 10_000)
     {
         _clock = clock;
         _maxFailures = maxFailures;
+        _maxTrackedAddresses = maxTrackedAddresses;
         _window = window ?? TimeSpan.FromMinutes(1);
+        _lastSweep = clock.UtcNow;
     }
+
+    /// <summary>
+    /// Gets the number of addresses currently tracked.
+    /// </summary>
+    public int TrackedAddressCount => _failures.Count;
 
     /// <summary>
     /// Gets a value indicating whether the address has used up its failures.
@@ -34,8 +48,13 @@ public sealed class AuthFailureLimiter
     /// <returns>True when blocked.</returns>
     public bool IsBlocked(string ip)
     {
-        Prune();
-        return _failures.TryGetValue(ip, out var queue) && Count(queue) >= _maxFailures;
+        SweepIfDue();
+        if (_failures.TryGetValue(ip, out var queue))
+        {
+            return PruneAndCount(ip, queue) >= _maxFailures;
+        }
+
+        return IsFull();
     }
 
     /// <summary>
@@ -44,7 +63,12 @@ public sealed class AuthFailureLimiter
     /// <param name="ip">The remote address.</param>
     public void RecordFailure(string ip)
     {
-        Prune();
+        SweepIfDue();
+        if (!_failures.ContainsKey(ip) && IsFull())
+        {
+            return;
+        }
+
         var queue = _failures.GetOrAdd(ip, static _ => new Queue<DateTime>());
         lock (queue)
         {
@@ -52,34 +76,46 @@ public sealed class AuthFailureLimiter
         }
     }
 
-    private static int Count(Queue<DateTime> queue)
-    {
-        lock (queue)
-        {
-            return queue.Count;
-        }
-    }
+    private bool IsFull() => _failures.Count >= _maxTrackedAddresses;
 
-    private void Prune()
+    private int PruneAndCount(string ip, Queue<DateTime> queue)
     {
         var cutoff = _clock.UtcNow - _window;
+        int count;
+        lock (queue)
+        {
+            while (queue.Count > 0 && queue.Peek() <= cutoff)
+            {
+                queue.Dequeue();
+            }
+
+            count = queue.Count;
+        }
+
+        if (count == 0)
+        {
+            _failures.TryRemove(new KeyValuePair<string, Queue<DateTime>>(ip, queue));
+        }
+
+        return count;
+    }
+
+    private void SweepIfDue()
+    {
+        var now = _clock.UtcNow;
+        lock (_sweepLock)
+        {
+            if (now - _lastSweep < _window)
+            {
+                return;
+            }
+
+            _lastSweep = now;
+        }
+
         foreach (var (ip, queue) in _failures)
         {
-            bool empty;
-            lock (queue)
-            {
-                while (queue.Count > 0 && queue.Peek() <= cutoff)
-                {
-                    queue.Dequeue();
-                }
-
-                empty = queue.Count == 0;
-            }
-
-            if (empty)
-            {
-                _failures.TryRemove(new KeyValuePair<string, Queue<DateTime>>(ip, queue));
-            }
+            PruneAndCount(ip, queue);
         }
     }
 }

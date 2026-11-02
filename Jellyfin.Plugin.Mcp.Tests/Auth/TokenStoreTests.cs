@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 using Jellyfin.Plugin.Mcp.Auth;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
@@ -67,23 +69,39 @@ public class TokenStoreTests
     public void ConcurrentCreateAndTouch_LosesNoWrites()
     {
         var config = new PluginConfiguration();
-        var store = new TokenStore(() => config, _ => { }, new FakeClock());
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+
+        // Realistic save: serialise a snapshot and swap in the deserialised copy as the live configuration.
+        void Save(PluginConfiguration c)
+        {
+            using var writer = new StringWriter();
+            serializer.Serialize(writer, c);
+            using var reader = new StringReader(writer.ToString());
+            config = (PluginConfiguration)serializer.Deserialize(reader)!;
+        }
+
+        var store = new TokenStore(() => config, Save, new FakeClock());
         var seed = store.Create("seed", Guid.NewGuid(), Array.Empty<string>(), null).Token;
-        var now = DateTime.UtcNow;
+        var touchedAt = new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         Parallel.For(0, 100, i =>
         {
-            if (i % 2 == 0)
+            if (i == 1)
+            {
+                store.TouchLastUsed(seed.Id, touchedAt);
+            }
+            else if (i % 2 == 0)
             {
                 store.Create("t" + i, Guid.NewGuid(), Array.Empty<string>(), null);
             }
             else
             {
-                store.TouchLastUsed(seed.Id, now.AddMinutes(i));
+                store.TouchLastUsed(seed.Id, touchedAt);
             }
         });
 
         Assert.Equal(51, config.Tokens.Count);
         Assert.Equal(51, config.Tokens.Select(t => t.Id).Distinct().Count());
+        Assert.Equal(touchedAt, config.Tokens.Single(t => t.Id == seed.Id).LastUsedAt);
     }
 }

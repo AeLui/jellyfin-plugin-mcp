@@ -176,4 +176,46 @@ public class TokenAuthenticatorTests
         _clock.Advance(TimeSpan.FromSeconds(61));
         Assert.Equal(AuthStatus.Unauthorized, _auth.Authenticate(null, Ip).Status);
     }
+
+    [Fact]
+    public void UnknownTokens_CountAsFailures_AndBlockIp()
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.Equal(AuthStatus.Unauthorized, _auth.Authenticate(Bearer(TokenGenerator.NewToken()), Ip).Status);
+        }
+
+        Assert.Equal(AuthStatus.TooManyRequests, _auth.Authenticate(Bearer(TokenGenerator.NewToken()), Ip).Status);
+    }
+
+    [Fact]
+    public void DisabledAndExpiredTokens_CountAsFailures()
+    {
+        var (disabled, _, _) = Setup(false, false, McpScopes.Library);
+        var (expired, _, _) = Setup(false, false, McpScopes.Library);
+        _config.Tokens[0].Enabled = false;
+        _config.Tokens[1].ExpiresAt = _clock.UtcNow;
+
+        for (var i = 0; i < 5; i++)
+        {
+            _auth.Authenticate(Bearer(disabled), Ip);
+            _auth.Authenticate(Bearer(expired), Ip);
+        }
+
+        Assert.Equal(AuthStatus.TooManyRequests, _auth.Authenticate(Bearer(disabled), Ip).Status);
+    }
+
+    [Fact]
+    public void DeletedUser_DoesNotCountAsFailure()
+    {
+        var (plaintext, _, user) = Setup(false, false, McpScopes.Library);
+        _users.Setup(u => u.GetUserById(user.Id)).Returns((User?)null);
+
+        for (var i = 0; i < 11; i++)
+        {
+            Assert.Equal(AuthStatus.Unauthorized, _auth.Authenticate(Bearer(plaintext), Ip).Status);
+        }
+
+        Assert.False(_limiter.IsBlocked(Ip));
+    }
 }

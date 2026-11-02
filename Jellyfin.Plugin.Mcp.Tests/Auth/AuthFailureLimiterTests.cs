@@ -40,4 +40,61 @@ public class AuthFailureLimiterTests
         clock.Advance(TimeSpan.FromSeconds(30));
         Assert.False(limiter.IsBlocked("ip"));
     }
+
+    [Fact]
+    public void GlobalSweep_RunsAtMostOncePerWindow()
+    {
+        var clock = new FakeClock();
+        var limiter = new AuthFailureLimiter(clock);
+
+        clock.Advance(TimeSpan.FromSeconds(51));
+        limiter.RecordFailure("f");
+        clock.Advance(TimeSpan.FromSeconds(10));
+        limiter.IsBlocked("probe");
+
+        // The sweep ran at t=61 and f (age 10 s) survived. At t=116 f is stale, but the next sweep is not due yet.
+        clock.Advance(TimeSpan.FromSeconds(55));
+        limiter.IsBlocked("other");
+        Assert.Equal(1, limiter.TrackedAddressCount);
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        limiter.IsBlocked("other");
+        Assert.Equal(0, limiter.TrackedAddressCount);
+    }
+
+    [Fact]
+    public void RequestingIpIsPrunedInline_WithoutGlobalSweep()
+    {
+        var clock = new FakeClock();
+        var limiter = new AuthFailureLimiter(clock, 1);
+        limiter.RecordFailure("a");
+        limiter.RecordFailure("b");
+        clock.Advance(TimeSpan.FromSeconds(30));
+        limiter.RecordFailure("c");
+        clock.Advance(TimeSpan.FromSeconds(31));
+
+        // Sweep is due here and removes a and b; c stays.
+        Assert.False(limiter.IsBlocked("a"));
+        Assert.Equal(1, limiter.TrackedAddressCount);
+    }
+
+    [Fact]
+    public void TrackedAddressCap_Holds_AndFailsClosedForNewIps()
+    {
+        var clock = new FakeClock();
+        var limiter = new AuthFailureLimiter(clock, 10, null, 3);
+
+        limiter.RecordFailure("1");
+        limiter.RecordFailure("2");
+        limiter.RecordFailure("3");
+        limiter.RecordFailure("4");
+
+        Assert.Equal(3, limiter.TrackedAddressCount);
+        Assert.True(limiter.IsBlocked("4"));
+        Assert.False(limiter.IsBlocked("1"));
+
+        clock.Advance(TimeSpan.FromSeconds(61));
+        Assert.False(limiter.IsBlocked("4"));
+        Assert.Equal(0, limiter.TrackedAddressCount);
+    }
 }
