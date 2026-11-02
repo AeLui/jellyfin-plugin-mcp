@@ -89,4 +89,5 @@ Tokens travel in a header, so use HTTPS whenever the server is not on a trusted 
 | 405 | You used GET or DELETE; only POST is supported. |
 | 415 | The request is not `Content-Type: application/json`. |
 | 413 | Request body over 1 MiB. |
+| Claude Code shows an authentication or OAuth prompt after you revoked a token | The server now answers 401 and Claude Code tries OAuth discovery, which this plugin does not offer. Remove the server (`claude mcp remove <name>`) and add it again with a new token. |
 | A tool is missing | The token's scopes do not include it, or `admin` was dropped because the user is not an administrator. |

@@ -42,7 +42,7 @@ python3 -I -m unittest discover -s scripts
 
 1. Create a class in `Tools/<Scope>/` deriving from that scope's base (`LibraryToolBase`, `PlaybackToolBase`, `ManageToolBase`, `AdminToolBase`), which derive from `JellyfinToolBase`.
 2. Define `Name`, `Description`, a JSON `InputSchema`, `Annotations` and `ExecuteAsync`. Parse arguments only through `ToolArguments`; throw `ToolException` for user errors.
-3. Check every supplied item id with `ItemLookup.GetVisible(user, id)`.
+3. Check every supplied item id with `ItemLookup.GetVisible(user, id)`; folder ids used as a query parent go through `GetVisibleContainer`, and library ids through `EnsureUserLibrary`.
 4. No manual registration is needed: `PluginServiceRegistrator` registers every non-abstract `IMcpTool` in the assembly.
 5. Write tests, including user scoping (a user must not reach items or sessions outside their access) and bad arguments.
 6. Update [tools.md](tools.md) and the tool-count test (currently 22 tools).
@@ -72,7 +72,8 @@ Checklist:
 4. Ask Claude to search the test library and get an item: results are correct, and an item in a library hidden from that user is not returned (also try its id directly).
 5. Revoke the token in the plugin page; the next call fails with 401.
 6. `curl -i http://localhost:8096/mcp` answers 405.
-7. Optional: with an admin token holding all scopes, `/mcp` lists 22 tools; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
+7. As admin, fetch the real root folder id from `GET /Items/Root` and pass it as `libraryId` to `jellyfin_search` and `jellyfin_recently_added` and as `parentId` to `jellyfin_browse` with the restricted user's token: each must answer `Item not found` and list nothing from the hidden library.
+8. Optional: with an admin token holding all scopes, `/mcp` lists 22 tools; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
 
 Fix any defect with a test first.
 

@@ -34,7 +34,7 @@ Summary of tools:
 | `jellyfin_list_playlists` | manage | true / false / true |
 | `jellyfin_manage_playlist` | manage | false / true / false |
 | `jellyfin_set_favorite` | manage | false / false / true |
-| `jellyfin_set_played` | manage | false / false / true |
+| `jellyfin_set_played` | manage | false / true / true |
 | `jellyfin_list_users` | admin | true / false / true |
 | `jellyfin_list_tasks` | admin | true / false / true |
 | `jellyfin_run_task` | admin | false / true / false |
@@ -60,7 +60,7 @@ Search the library by text, optionally filtered by type, genre, production year 
 | `genres` | string[] | no | | Restrict to these genres. |
 | `yearFrom` | integer | no | | Earliest production year; without `yearTo` runs to the current year. |
 | `yearTo` | integer | no | | Latest production year; without `yearFrom` starts at 1880. Years must be 1 to 9999, `yearFrom` must not exceed `yearTo`, and the span must be fewer than 200 years. |
-| `libraryId` | string | no | | Restrict to one library. |
+| `libraryId` | string | no | | Restrict to one library; must be an id returned by `jellyfin_list_libraries` (anything else, including root folders, is `Item not found`). |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
 
 ```json
@@ -76,7 +76,7 @@ List the direct children of a library or folder with sorting and played/favorite
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| `parentId` | string | yes | | Library or folder id. |
+| `parentId` | string | yes | | Library or folder id. The server root folders are rejected with `Item not found`; use ids from `jellyfin_list_libraries` and below. |
 | `sortBy` | string | no | `name` | `name`, `date_added`, `premiere_date`, `community_rating`, `random`. |
 | `sortOrder` | string | no | `asc` | `asc`, `desc`. |
 | `filter` | string | no | `all` | `all`, `unplayed`, `played`, `favorites`. |
@@ -140,7 +140,7 @@ List the most recently added items, newest first. Episodes are listed individual
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| `libraryId` | string | no | | Restrict to one library. |
+| `libraryId` | string | no | | Restrict to one library; must be an id returned by `jellyfin_list_libraries`. |
 | `types` | string[] | no | all non-folder | Any of `movie`, `episode`, `video`, `audio`. |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
 
@@ -330,7 +330,7 @@ Add an item to, or remove it from, the favorites of the token's user.
 
 ### jellyfin_set_played
 
-Mark an item as played or unplayed for the token's user. For a series or season this applies to all its episodes. Changes watch history.
+Mark an item as played or unplayed for the token's user. For a series or season this applies to all its episodes. Changes watch history. `played: false` on a series or season clears the play state and resume positions of all its episodes and cannot be undone, so the tool is annotated destructive.
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
@@ -352,13 +352,13 @@ Only for Jellyfin administrators. At request time the `admin` scope is dropped f
 
 ### jellyfin_list_users
 
-List the server's users: id, name, administrator and disabled flags, and last activity and login dates. Read-only; no password, policy or authentication-provider details are exposed. No parameters.
+List the server's users: id (32-character hex without dashes, like every other id), name, administrator and disabled flags, and last activity and login dates. Read-only; no password, policy or authentication-provider details are exposed. No parameters.
 
 ```json
 {"name":"jellyfin_list_users","arguments":{}}
 ```
 ```json
-[{"id":"1a2b...","name":"alice","isAdministrator":true,"isDisabled":false,"lastActivityDate":"2026-11-01T18:00:00.0000000Z"}]
+[{"id":"1a2b3c4d5e6f47088192a3b4c5d6e7f8","name":"alice","isAdministrator":true,"isDisabled":false,"lastActivityDate":"2026-11-01T18:00:00.0000000Z"}]
 ```
 
 ### jellyfin_list_tasks

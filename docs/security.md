@@ -26,6 +26,8 @@ Start with `library` and add scopes per client.
 
 ### Library access and parental controls
 
+Library and parent ids are stricter: `libraryId` (search, recently added) must be one of the libraries `jellyfin_list_libraries` returns for the user, and `parentId` (browse) must be a visible folder that is not the server root. Jellyfin treats its root folders as visible to everyone, and using one as a query parent would bypass per-user library scoping and list hidden libraries, so they answer `Item not found`.
+
 Every user-supplied item id (item, parent, library, series, person, playlist entries, play targets) is loaded with the user overload `ILibraryManager.GetItemById<BaseItem>(id, user)`. That overload enforces the user's enabled/blocked libraries and parental rating limits, so an item the user cannot see is indistinguishable from a missing one (`Item not found`).
 
 `InternalItemsQuery` with `ItemIds` or `ParentId` is deliberately not used for this check: in Jellyfin 12.4 such a query does not enforce library-folder access, so a guessed id could leak an item from a hidden library. Queries without those fields are scoped by Jellyfin to the user's libraries, and list results are always built from a user-scoped query.
@@ -46,6 +48,7 @@ MCP clients are expected to ask for confirmation on tools annotated destructive;
 
 - `POST /mcp` only; `GET` and `DELETE` answer 405. Maximum body 1 MiB (413 above).
 - Failed authentication is rate limited: more than 10 failures per minute from one IP answers 429 with `Retry-After: 60`. To bound memory, at most 10 000 addresses are tracked; when that cap is reached, new addresses are not tracked and the limiter fails open for them. This cap only keeps an address flood from locking out legitimate clients; it does not change the proxy caveat below.
+- A blocked IP gets 429 even when it presents a valid token. This is by design; configure Known Proxies (below) so one client's failures do not block others. The `Origin` and `MCP-Protocol-Version` headers are not validated; every request needs a bearer token, which a DNS-rebinding page cannot obtain or send, so there is nothing for such validation to protect.
 - The failure count is per remote IP. Behind a reverse proxy, configure Jellyfin's **Known Proxies** so the real client address is used; otherwise all clients share the proxy's address and a few failed attempts block everyone.
 - Playlist `remove_items` only accepts entry ids that belong to the playlist and whose item is visible to the user (`IsVisible(user)` on the playlist's own entries), so hidden items cannot be probed through it.
 - Argument validation: malformed arguments return `isError` results naming the argument; `limit` is clamped; id lists are capped (100).
