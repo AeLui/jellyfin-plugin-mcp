@@ -1,5 +1,8 @@
+using System;
+using System.Threading.Tasks;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
+using MediaBrowser.Common.Extensions;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 
@@ -46,4 +49,31 @@ public abstract class PlaybackToolBase : JellyfinToolBase
     /// Gets the session manager.
     /// </summary>
     protected ISessionManager SessionManager { get; }
+
+    /// <summary>
+    /// Runs a session-manager send and maps server failures to messages that do not leak the server's text.
+    /// </summary>
+    /// <param name="send">The send operation.</param>
+    /// <param name="isPlay">Whether this is a play command, whose argument failures mean play access was refused.</param>
+    /// <returns>A task that completes when the command was sent.</returns>
+    protected static async Task SendAsync(Func<Task> send, bool isPlay = false)
+    {
+        ArgumentNullException.ThrowIfNull(send);
+        try
+        {
+            await send().ConfigureAwait(false);
+        }
+        catch (ResourceNotFoundException)
+        {
+            throw new ToolException("Session not found");
+        }
+        catch (ArgumentException) when (isPlay)
+        {
+            throw new ToolException("Playback was refused by the server");
+        }
+        catch (ArgumentException)
+        {
+            throw new ToolException("Session not found");
+        }
+    }
 }

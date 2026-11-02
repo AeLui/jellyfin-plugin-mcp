@@ -71,7 +71,7 @@ public sealed class SendMessageTool : PlaybackToolBase
             Text = text,
             TimeoutMs = timeout * 1000L,
         };
-        await SessionManager.SendMessageCommand(ControllingSessionId, session.Id, command, ct).ConfigureAwait(false);
+        await SendAsync(() => SessionManager.SendMessageCommand(ControllingSessionId, session.Id, command, ct)).ConfigureAwait(false);
         return ToolResult.Json(new { sessionId = session.Id, sent = true });
     }
 }

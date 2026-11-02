@@ -85,7 +85,7 @@ public sealed class PlaybackControlTool : PlaybackToolBase
             },
             SeekPositionTicks = ticks,
         };
-        await SessionManager.SendPlaystateCommand(ControllingSessionId, session.Id, request, ct).ConfigureAwait(false);
+        await SendAsync(() => SessionManager.SendPlaystateCommand(ControllingSessionId, session.Id, request, ct)).ConfigureAwait(false);
         return ToolResult.Json(new { sessionId = session.Id, command = control.ToString().ToLowerInvariant() });
     }
 }

@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Database.Implementations.Enums;
+using Jellyfin.Data;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tests.Auth;
@@ -62,7 +64,7 @@ public class PlaybackToolsTests
         return session;
     }
 
-    private SessionResolver Resolver() => new(_sessionManager.Object);
+    private SessionResolver Resolver() => new(_sessionManager.Object, _users.Object);
 
     private ListSessionsTool List() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 
@@ -100,6 +102,7 @@ public class PlaybackToolsTests
     [Fact]
     public async Task ListSessions_Admin_AllControllableSessions()
     {
+        _user.SetPermission(PermissionKind.EnableRemoteControlOfOtherUsers, true);
         AddSession("mine", _user.Id);
         AddSession("theirs", Guid.NewGuid());
         AddSession("no-remote", Guid.NewGuid(), remoteControl: false);
@@ -124,6 +127,70 @@ public class PlaybackToolsTests
         Assert.Equal("Session not found", foreign.Message);
         Assert.Equal(foreign.Message, unknown.Message);
         NeverSent();
+    }
+
+    [Fact]
+    public async Task Admin_WithRemoteControlPermission_CanControlForeignSession_SendingOnce()
+    {
+        _user.SetPermission(PermissionKind.EnableRemoteControlOfOtherUsers, true);
+        AddSession("theirs", Guid.NewGuid());
+        var item = new Movie { Id = Guid.NewGuid(), Name = "M" };
+        _library.Setup(l => l.GetItemById<BaseItem>(item.Id, _user)).Returns(item);
+
+        await Play().ExecuteAsync(Args($$"""{"sessionId":"theirs","itemIds":["{{item.Id}}"]}"""), _adminPrincipal, CancellationToken.None);
+        await Control().ExecuteAsync(Args("""{"sessionId":"theirs","command":"pause"}"""), _adminPrincipal, CancellationToken.None);
+        await Message().ExecuteAsync(Args("""{"sessionId":"theirs","text":"hi"}"""), _adminPrincipal, CancellationToken.None);
+
+        _sessionManager.Verify(m => m.SendPlayCommand(It.IsAny<string>(), "theirs", It.IsAny<PlayRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        _sessionManager.Verify(m => m.SendPlaystateCommand(It.IsAny<string>(), "theirs", It.IsAny<PlaystateRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        _sessionManager.Verify(m => m.SendMessageCommand(It.IsAny<string>(), "theirs", It.IsAny<MessageCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Admin_WithoutRemoteControlPermission_ForeignSession_NotListedNotControllable()
+    {
+        _user.SetPermission(PermissionKind.EnableRemoteControlOfOtherUsers, false);
+        AddSession("mine", _user.Id);
+        AddSession("theirs", Guid.NewGuid());
+        var item = new Movie { Id = Guid.NewGuid(), Name = "M" };
+        _library.Setup(l => l.GetItemById<BaseItem>(item.Id, _user)).Returns(item);
+
+        var listed = await List().ExecuteAsync(Args("{}"), _adminPrincipal, CancellationToken.None);
+        var play = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"theirs","itemIds":["{{item.Id}}"]}"""), _adminPrincipal, CancellationToken.None));
+        var control = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"theirs","command":"pause"}"""), _adminPrincipal, CancellationToken.None));
+        var message = await Assert.ThrowsAsync<ToolException>(() =>
+            Message().ExecuteAsync(Args("""{"sessionId":"theirs","text":"hi"}"""), _adminPrincipal, CancellationToken.None));
+
+        Assert.Equal("mine", Assert.Single(Parse(listed).EnumerateArray()).GetProperty("sessionId").GetString());
+        Assert.All(new[] { play, control, message }, e => Assert.Equal("Session not found", e.Message));
+        NeverSent();
+    }
+
+    [Fact]
+    public async Task ServerRefusals_AreMappedWithoutServerMessage()
+    {
+        AddSession("mine", _user.Id);
+        var item = new Movie { Id = Guid.NewGuid(), Name = "M" };
+        _library.Setup(l => l.GetItemById<BaseItem>(item.Id, _user)).Returns(item);
+        _sessionManager.Setup(m => m.SendPlayCommand(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<PlayRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("bob is not allowed to play media."));
+        _sessionManager.Setup(m => m.SendPlaystateCommand(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<PlaystateRequest>(), It.IsAny<CancellationToken>()))
+            .Throws(new MediaBrowser.Common.Extensions.ResourceNotFoundException("Session bob-phone not found"));
+        _sessionManager.Setup(m => m.SendMessageCommand(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<MessageCommand>(), It.IsAny<CancellationToken>()))
+            .Throws(new MediaBrowser.Common.Extensions.ResourceNotFoundException("Session bob-phone not found"));
+
+        var play = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{item.Id}}"]}"""), _principal, CancellationToken.None));
+        var control = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"pause"}"""), _principal, CancellationToken.None));
+        var message = await Assert.ThrowsAsync<ToolException>(() =>
+            Message().ExecuteAsync(Args("""{"sessionId":"mine","text":"hi"}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Playback was refused by the server", play.Message);
+        Assert.Equal("Session not found", control.Message);
+        Assert.Equal("Session not found", message.Message);
     }
 
     [Fact]
