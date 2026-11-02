@@ -150,6 +150,7 @@ public class McpControllerTests
         services.AddSingleton(new Mock<ILibraryManager>().Object);
         services.AddSingleton(new Mock<IUserDataManager>().Object);
         services.AddSingleton(new Mock<IUserViewManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
@@ -157,6 +158,7 @@ public class McpControllerTests
 
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<ToolRegistry>());
         Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_get_item");
+        Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_next_up");
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<JsonRpcDispatcher>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<TokenAuthenticator>());
         Assert.Same(provider.GetRequiredService<ITokenStore>(), provider.GetRequiredService<ITokenStore>());

@@ -77,6 +77,7 @@ public static class ItemMapper
             Add(result, "played", data.Played);
             Add(result, "favorite", data.IsFavorite);
             Add(result, "playbackPositionMinutes", data.PlaybackPositionTicks > 0 ? Minutes(data.PlaybackPositionTicks) : null);
+            Add(result, "lastPlayedDate", data.LastPlayedDate?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
         }
 
         return result;
