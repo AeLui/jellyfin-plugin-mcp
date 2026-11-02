@@ -1,6 +1,6 @@
 # Tool reference
 
-22 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on any other tool answers "Unknown tool".
+22 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
 
 ## Conventions
 
@@ -11,6 +11,8 @@
 - **Paging**: list tools take `limit` (integer, default 20, clamped to 1..`Max page size`, default 100) and `startIndex` (integer, default 0) and return `{ "totalCount": n, "items": [...] }`.
 - **Visibility**: every user-supplied item id is checked against the token user's library access and parental rating. An item the user cannot see is reported as `Item not found`, exactly like an id that does not exist.
 - **Item summary** (used in `items`): `id`, `name`, `type` (snake_case), `year`, `seriesName`, `seasonNumber`, `episodeNumber`, `runtimeMinutes`, `communityRating`, `officialRating`, and the user's `played`, `favorite`, `playbackPositionMinutes`, `lastPlayedDate`.
+
+The example results below are illustrative, not captured from a live server.
 
 Summary of tools:
 
@@ -57,7 +59,7 @@ Search the library by text, optionally filtered by type, genre, production year 
 | `types` | string[] | no | all | Any of `movie`, `series`, `season`, `episode`, `audio`, `music_album`, `music_artist`, `playlist`, `box_set`. |
 | `genres` | string[] | no | | Restrict to these genres. |
 | `yearFrom` | integer | no | | Earliest production year; without `yearTo` runs to the current year. |
-| `yearTo` | integer | no | | Latest production year; without `yearFrom` starts at 1880. |
+| `yearTo` | integer | no | | Latest production year; without `yearFrom` starts at 1880. Years must be 1 to 9999, `yearFrom` must not exceed `yearTo`, and the span must be fewer than 200 years. |
 | `libraryId` | string | no | | Restrict to one library. |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
 
@@ -269,7 +271,7 @@ Show a message on the screen of one of your sessions.
 
 ## Scope `manage`
 
-These tools change data of the token's own user only (playlists, favorites, watch state). They never touch other users' data.
+These tools change the user's own watch state and favorites, plus playlists the user owns or may edit (playlists shared with the user with edit permission). Nothing else is changed.
 
 ### jellyfin_list_playlists
 

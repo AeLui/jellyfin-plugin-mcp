@@ -22,7 +22,7 @@ Open **Dashboard > Plugins > MCP Server**.
 | Setting | Default | Meaning |
 |---|---|---|
 | Enable MCP endpoint | on | When off, `/mcp` answers 503 and no tool runs. |
-| Max page size | 100 | Upper limit for the `limit` of list tools (1 to 1000). A larger `limit` is clamped, not rejected. |
+| Max page size | 100 | Upper limit for the `limit` of list tools (the dashboard accepts 1 to 1000; the server itself only floors it at 1). A larger `limit` is clamped to this value, not rejected. |
 | Log tool calls | off | One log line per tool call: tool name, user, duration, outcome. Arguments and tokens are never logged. |
 
 The page also shows the endpoint URL (`<your server>/mcp`).
@@ -69,7 +69,7 @@ Edit `claude_desktop_config.json` (Settings > Developer > Edit config):
 }
 ```
 
-Restart Claude Desktop afterwards.
+Restart Claude Desktop afterwards. This `mcp-remote` flow is expected to work but has not been verified against a live server yet.
 
 ### Other clients
 
@@ -87,5 +87,6 @@ Tokens travel in a header, so use HTTPS whenever the server is not on a trusted 
 | 429 with `Retry-After: 60` | Too many failed attempts from this IP in a minute. |
 | 503 | The endpoint is disabled in the plugin settings, or the plugin is not ready yet. |
 | 405 | You used GET or DELETE; only POST is supported. |
+| 415 | The request is not `Content-Type: application/json`. |
 | 413 | Request body over 1 MiB. |
 | A tool is missing | The token's scopes do not include it, or `admin` was dropped because the user is not an administrator. |

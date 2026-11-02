@@ -19,7 +19,7 @@ The plugin lets a token holder act on Jellyfin as one specific user, restricted 
 |---|---|---|
 | `library` | Read-only browsing, search, details, history | Everything is limited to what the token's user may see. |
 | `playback` | List sessions, play, control, send messages | The user's own sessions only (see below). |
-| `manage` | Playlists, favorites, played state | Own data only. Never touches other users' data. |
+| `manage` | Playlists, favorites, played state | The user's own watch state and favorites, plus playlists the user owns or may edit. |
 | `admin` | Users, tasks, scans, metadata refresh | Granted only to administrators and dropped at request time if the user stops being one. |
 
 Start with `library` and add scopes per client.
@@ -45,8 +45,9 @@ MCP clients are expected to ask for confirmation on tools annotated destructive;
 ## Request hardening
 
 - `POST /mcp` only; `GET` and `DELETE` answer 405. Maximum body 1 MiB (413 above).
-- Failed authentication is rate limited: more than 10 failures per minute from one IP answers 429 with `Retry-After: 60`. To bound memory, at most 10 000 addresses are tracked; when that cap is reached, new addresses are not tracked and the limiter fails open for them (it never locks out legitimate clients because of an attack).
+- Failed authentication is rate limited: more than 10 failures per minute from one IP answers 429 with `Retry-After: 60`. To bound memory, at most 10 000 addresses are tracked; when that cap is reached, new addresses are not tracked and the limiter fails open for them. This cap only keeps an address flood from locking out legitimate clients; it does not change the proxy caveat below.
 - The failure count is per remote IP. Behind a reverse proxy, configure Jellyfin's **Known Proxies** so the real client address is used; otherwise all clients share the proxy's address and a few failed attempts block everyone.
+- Playlist `remove_items` only accepts entry ids that belong to the playlist and whose item is visible to the user (`IsVisible(user)` on the playlist's own entries), so hidden items cannot be probed through it.
 - Argument validation: malformed arguments return `isError` results naming the argument; `limit` is clamped; id lists are capped (100).
 - Error messages do not leak server internals; unexpected failures are reduced to a generic message.
 
@@ -68,7 +69,7 @@ MCP clients are expected to ask for confirmation on tools annotated destructive;
 | Access to hidden libraries or rated-out content | User-aware item lookups for every id; hidden looks like missing. |
 | Controlling other people's playback | Session ownership, plus admin scope and remote-control permission for foreign sessions. |
 | Tampering with tokens via the generic plugin config API | `UpdateConfiguration` cannot change tokens. |
-| Prompt injection through media metadata | Metadata is returned as data; destructive tools are annotated so clients can confirm. Limit scopes so an injected instruction cannot do more than the scopes allow. |
+| Prompt injection through media metadata | Not prevented by the plugin: text in media metadata (titles, overviews) is passed to the assistant and may contain injected instructions. Mitigations are least-privilege scopes, destructive-tool annotations and client-side confirmation of tool calls. |
 | Denial of service | 1 MiB body cap, failure limiter, bounded limiter memory, capped page sizes and id lists. |
 | Plugin installing third-party code | `PluginUpdates` task cannot be run through MCP. |
 

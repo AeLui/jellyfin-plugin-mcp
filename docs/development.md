@@ -53,7 +53,7 @@ xUnit tests mirror the source layout: `Api`, `Auth`, `Mcp`, `Tools/{Library,Play
 
 ## Local Jellyfin and manual verification
 
-Docker was not available during implementation, so the manual checklist below has not been run yet. Run it before the first release.
+Not yet run against a live server: the manual checklist below has not been run. Run it before the first release.
 
 Setup:
 

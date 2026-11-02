@@ -42,7 +42,7 @@ Claude Desktop (`claude_desktop_config.json`; requires [Node.js](https://nodejs.
 }
 ```
 
-The token dialog in the plugin page generates both snippets for you.
+The token dialog in the plugin page generates both snippets for you. The Claude Desktop flow is expected to work but has not been verified against a live server yet.
 
 ## Scopes and tools
 
