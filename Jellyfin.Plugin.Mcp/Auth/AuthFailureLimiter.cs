@@ -24,8 +24,10 @@ public sealed class AuthFailureLimiter
     /// <param name="maxFailures">Failures allowed within the window before blocking.</param>
     /// <param name="window">The sliding window; one minute when null.</param>
     /// <param name="maxTrackedAddresses">
-    /// Upper bound on tracked addresses. When it is reached and a sweep frees nothing,
-    /// addresses not yet tracked are treated as blocked (fail closed) instead of growing memory.
+    /// Upper bound on tracked addresses. When it is reached, failures from addresses not yet tracked
+    /// are dropped and untracked addresses are never reported as blocked (fail open), so an attacker
+    /// spraying from many addresses cannot lock out legitimate users. Tracked addresses behave normally.
+    /// Space is only freed by the periodic sweep (at most once per window) or by an address's own pruning.
     /// </param>
     public AuthFailureLimiter(IClock clock, int maxFailures = 10, TimeSpan? window = null, int maxTrackedAddresses = 10_000)
     {
@@ -54,7 +56,7 @@ public sealed class AuthFailureLimiter
             return PruneAndCount(ip, queue) >= _maxFailures;
         }
 
-        return IsFull();
+        return false;
     }
 
     /// <summary>

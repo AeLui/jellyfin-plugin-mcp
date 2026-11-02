@@ -79,7 +79,7 @@ public class AuthFailureLimiterTests
     }
 
     [Fact]
-    public void TrackedAddressCap_Holds_AndFailsClosedForNewIps()
+    public void TrackedAddressCap_Holds_AndFailsOpenForNewIps()
     {
         var clock = new FakeClock();
         var limiter = new AuthFailureLimiter(clock, 10, null, 3);
@@ -90,7 +90,8 @@ public class AuthFailureLimiterTests
         limiter.RecordFailure("4");
 
         Assert.Equal(3, limiter.TrackedAddressCount);
-        Assert.True(limiter.IsBlocked("4"));
+        Assert.False(limiter.IsBlocked("4"));
+        Assert.Equal(3, limiter.TrackedAddressCount);
         Assert.False(limiter.IsBlocked("1"));
 
         clock.Advance(TimeSpan.FromSeconds(61));
