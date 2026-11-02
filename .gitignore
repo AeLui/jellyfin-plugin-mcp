@@ -1,4 +1,12 @@
 .superpowers/
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+.dev/
 docs/superpowers/
 AGENTS.md
 CLAUDE.md

@@ -1,0 +1,17 @@
+---
+name: "MCP Server"
+guid: "08dd6fbf-c026-48c9-9405-824c3906df09"
+version: "0.1.0.0"
+targetAbi: "12.4.0.0"
+framework: "net10.0"
+overview: "Exposes Jellyfin to AI assistants through the Model Context Protocol."
+description: >
+  Adds an MCP (Model Context Protocol) endpoint to Jellyfin so AI assistants
+  can browse the library, control playback and manage content using
+  scoped, per-user access tokens.
+category: "General"
+owner: "AFBenot"
+artifacts:
+- "Jellyfin.Plugin.Mcp.dll"
+changelog: >
+  Initial release.
