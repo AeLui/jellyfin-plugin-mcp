@@ -15,6 +15,9 @@ namespace Jellyfin.Plugin.Mcp.Tools.Admin;
 /// </summary>
 public sealed class RunTaskTool : AdminToolBase
 {
+    // Installs third-party plugin code, so it is never started through MCP.
+    private const string PluginUpdatesKey = "PluginUpdates";
+
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"taskId":{"type":"string","description":"Task id, from jellyfin_list_tasks."},"key":{"type":"string","description":"Task key, from jellyfin_list_tasks. Used when taskId is not given."}}}""").RootElement.Clone();
 
@@ -36,13 +39,13 @@ public sealed class RunTaskTool : AdminToolBase
     public override string Name => "jellyfin_run_task";
 
     /// <inheritdoc />
-    public override string Description => "Start a scheduled task by taskId or key. The task runs in the background; use jellyfin_list_tasks to follow its progress.";
+    public override string Description => "Start a scheduled task by taskId or key. The task runs in the background; use jellyfin_list_tasks to follow its progress. Some tasks delete cache, log or transcode files or clean up the database, and the plugin update task cannot be run.";
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
-    public override ToolAnnotations Annotations { get; } = new(false, false, false);
+    public override ToolAnnotations Annotations { get; } = new(false, true, false);
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
@@ -56,6 +59,11 @@ public sealed class RunTaskTool : AdminToolBase
         }
 
         var worker = FindTask(_taskManager.ScheduledTasks, id, key) ?? throw new ToolException("Task not found");
+        if (string.Equals(worker.ScheduledTask?.Key, PluginUpdatesKey, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ToolException("This task cannot be run via MCP");
+        }
+
         StartTask(_taskManager, worker);
         return Task.FromResult(ToolResult.Json(new Dictionary<string, object> { ["started"] = true }));
     }

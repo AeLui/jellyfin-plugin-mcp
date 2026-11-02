@@ -271,6 +271,30 @@ public class AdminToolsTests
         Assert.True(Parse(result).GetProperty("started").GetBoolean());
     }
 
+    [Theory]
+    [InlineData("""{"key":"PluginUpdates"}""")]
+    [InlineData("""{"taskId":"id-plugins"}""")]
+    public async Task RunTask_PluginUpdates_IsRefusedAndNeverExecuted(string json)
+    {
+        SetTasks(Worker("id-plugins", "PluginUpdates"), Worker("id-1", "MyKey"));
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() => new RunTaskTool(_users.Object, _settings.Object, _tasks.Object)
+            .ExecuteAsync(Args(json), _principal, CancellationToken.None));
+
+        Assert.Equal("This task cannot be run via MCP", ex.Message);
+        _tasks.Verify(t => t.Execute(It.IsAny<IScheduledTaskWorker>(), It.IsAny<TaskOptions>()), Times.Never);
+    }
+
+    [Fact]
+    public void RunTask_IsDestructive_AndSaysSo()
+    {
+        var tool = new RunTaskTool(_users.Object, _settings.Object, _tasks.Object);
+
+        Assert.True(tool.Annotations.Destructive);
+        Assert.False(tool.Annotations.ReadOnly);
+        Assert.Contains("delete", tool.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task ListUsers_ExposesNoPasswordOrPolicyDetails()
     {
