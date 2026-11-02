@@ -1,5 +1,7 @@
 # Jellyfin MCP Server plugin
 
+![MCP Server for Jellyfin](images/logo.png)
+
 A Jellyfin plugin that exposes your server to AI assistants through the [Model Context Protocol](https://modelcontextprotocol.io) (MCP). Assistants such as Claude can search and browse your library, see what you are watching, control playback on your devices, manage playlists and favorites, and (for administrators) run server tasks. Every call runs as the Jellyfin user who owns the access token, limited to that user's permissions and to the scopes granted to the token. The plugin has no runtime dependencies besides Jellyfin itself.
 
 ## Compatibility

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14101f"/>
+      <stop offset="1" stop-color="#0b1622"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#AA5CC3"/>
+      <stop offset="1" stop-color="#00A4DC"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7a6bd0" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7a6bd0" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="1.4" fill="#ffffff" fill-opacity="0.06"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#grid)"/>
+  <circle cx="330" cy="360" r="300" fill="url(#glow)"/>
+
+  <!-- Network of AI clients linked to the media hub -->
+  <g stroke="url(#brand)" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.85">
+    <path d="M330 360 L130 170"/>
+    <path d="M330 360 L105 420"/>
+    <path d="M330 360 L200 590"/>
+    <path d="M330 360 L540 150"/>
+    <path d="M330 360 L560 560"/>
+  </g>
+  <g fill="#0f1420" stroke="url(#brand)" stroke-width="6">
+    <circle cx="130" cy="170" r="30"/>
+    <circle cx="105" cy="420" r="24"/>
+    <circle cx="200" cy="590" r="28"/>
+    <circle cx="540" cy="150" r="26"/>
+    <circle cx="560" cy="560" r="32"/>
+  </g>
+  <g fill="url(#brand)">
+    <circle cx="130" cy="170" r="10"/>
+    <circle cx="105" cy="420" r="8"/>
+    <circle cx="200" cy="590" r="9"/>
+    <circle cx="540" cy="150" r="9"/>
+    <circle cx="560" cy="560" r="11"/>
+  </g>
+
+  <!-- Central hub with a play symbol -->
+  <circle cx="330" cy="360" r="140" fill="#0f1420" stroke="url(#brand)" stroke-width="10"/>
+  <path d="M290 285 L410 360 L290 435 Z" fill="url(#brand)" stroke="url(#brand)" stroke-width="18" stroke-linejoin="round"/>
+
+  <!-- Wordmark -->
+  <g font-family="Segoe UI, Bahnschrift, Arial, sans-serif">
+    <text x="660" y="330" font-size="112" fill="#ffffff"><tspan font-weight="700">MCP</tspan><tspan font-weight="300"> Server</tspan></text>
+    <rect x="664" y="366" width="120" height="8" rx="4" fill="url(#brand)"/>
+    <text x="662" y="446" font-size="40" font-weight="400" fill="#c9cbe0">Talk to your Jellyfin library</text>
+    <text x="662" y="502" font-size="40" font-weight="400" fill="#c9cbe0">from any AI assistant</text>
+  </g>
+</svg>

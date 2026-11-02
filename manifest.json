@@ -2,8 +2,9 @@
   {
     "guid": "08dd6fbf-c026-48c9-9405-824c3906df09",
     "name": "MCP Server",
-    "description": "Adds an MCP (Model Context Protocol) endpoint to Jellyfin so AI assistants can browse the library, control playback and manage content using scoped, per-user access tokens.",
-    "overview": "Exposes Jellyfin to AI assistants through the Model Context Protocol.",
+    "description": "Turns Jellyfin into an MCP (Model Context Protocol) server so AI assistants such as Claude can work with your media in plain language. Ask what to watch next, search movies, shows and music, check what was recently added or what you watched last week, start or pause playback on any of your devices, manage playlists, favorites and watched status, and, as an administrator, run scheduled tasks and library scans. 22 tools in four scopes (library, playback, manage, admin). Every access token belongs to one Jellyfin user and only sees what that user can see. Create tokens on the plugin settings page and connect your assistant to https://your-server/mcp.",
+    "overview": "Let AI assistants like Claude search your library, control playback and manage playlists.",
+    "imageUrl": "https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/images/logo.png",
     "owner": "AeLui",
     "category": "General",
     "versions": [
