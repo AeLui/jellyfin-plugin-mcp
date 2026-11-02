@@ -79,13 +79,14 @@ public sealed class GetPersonTool : LibraryToolBase
         var query = new InternalItemsQuery(user)
         {
             PersonIds = [person.Id],
+            ExcludeItemTypes = VisibleItems.ExcludedKinds(),
             Recursive = true,
             StartIndex = startIndex,
             Limit = limit,
             EnableTotalRecordCount = true,
             OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.SortName, SortOrder.Ascending) },
         };
-        var items = _libraryManager.GetItemsResult(query);
+        var items = _libraryManager.GetVisibleItemsResult(query);
 
         var result = new Dictionary<string, object>
         {

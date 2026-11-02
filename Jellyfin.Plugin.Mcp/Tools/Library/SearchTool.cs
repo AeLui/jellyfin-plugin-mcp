@@ -100,6 +100,12 @@ public sealed class SearchTool : LibraryToolBase
             Limit = limit,
             EnableTotalRecordCount = true,
         };
+        if (query.IncludeItemTypes.Length == 0)
+        {
+            // Playlists and collections are only searched when asked for by type, where they are checked per user.
+            query.ExcludeItemTypes = VisibleItems.ExcludedKinds();
+        }
+
         if (years.Length > 0)
         {
             query.Years = years;
@@ -110,7 +116,7 @@ public sealed class SearchTool : LibraryToolBase
             query.ParentId = libraryId.Value;
         }
 
-        var result = _libraryManager.GetItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 

@@ -56,7 +56,7 @@ Search the library by text, optionally filtered by type, genre, production year 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
 | `query` | string | yes | | Text to search for. |
-| `types` | string[] | no | all | Any of `movie`, `series`, `season`, `episode`, `audio`, `music_album`, `music_artist`, `playlist`, `box_set`. |
+| `types` | string[] | no | all except playlists and collections | Any of `movie`, `series`, `season`, `episode`, `audio`, `music_album`, `music_artist`, `playlist`, `box_set`. Playlists and collections are only searched when listed here, and then only those the user can see. |
 | `genres` | string[] | no | | Restrict to these genres. |
 | `yearFrom` | integer | no | | Earliest production year; without `yearTo` runs to the current year. |
 | `yearTo` | integer | no | | Latest production year; without `yearFrom` starts at 1880. Years must be 1 to 9999, `yearFrom` must not exceed `yearTo`, and the span must be fewer than 200 years. |

@@ -89,7 +89,7 @@ public sealed class RecentlyAddedTool : LibraryToolBase
             query.ParentId = libraryId.Value;
         }
 
-        var result = _libraryManager.GetItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 }

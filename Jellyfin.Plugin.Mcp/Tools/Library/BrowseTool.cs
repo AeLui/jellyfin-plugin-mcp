@@ -87,7 +87,7 @@ public sealed class BrowseTool : LibraryToolBase
         var filter = args.GetEnum<BrowseFilter>("filter") ?? BrowseFilter.All;
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
         var user = GetUser(principal);
-        _lookup.GetVisibleContainer(user, parentId);
+        var parent = _lookup.GetVisibleContainer(user, parentId);
 
         var sortField = sortBy switch
         {
@@ -119,7 +119,7 @@ public sealed class BrowseTool : LibraryToolBase
                 break;
         }
 
-        var result = _libraryManager.GetItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query, parent is BasePluginFolder);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 }
