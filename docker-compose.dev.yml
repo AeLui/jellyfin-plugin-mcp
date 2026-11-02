@@ -1,0 +1,11 @@
+# Local Jellyfin for manual testing. Build first: dotnet build -c Release
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:12.4
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./.dev/config:/config
+      - ./.dev/cache:/cache
+      - ./.dev/media:/media
+      - ./Jellyfin.Plugin.Mcp/bin/Release/net10.0:/config/plugins/MCP Server_0.1.0.0

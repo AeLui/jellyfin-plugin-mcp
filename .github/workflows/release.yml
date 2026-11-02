@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Derive version from tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not of the form vX.Y.Z or vX.Y.Z.W"
+            exit 1
+          fi
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VERSION="${VERSION}.0"
+          fi
+          BUILD_YAML_VERSION="$(sed -n 's/^version: *"\(.*\)"/\1/p' build.yaml)"
+          if [ "$BUILD_YAML_VERSION" != "$VERSION" ]; then
+            echo "::error::build.yaml version '$BUILD_YAML_VERSION' does not match tag version '$VERSION'"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: >
+          dotnet build -c Release
+          -p:Version=${VERSION} -p:AssemblyVersion=${VERSION} -p:FileVersion=${VERSION}
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          ZIP="jellyfin-plugin-mcp_${VERSION}.zip"
+          zip -j "$ZIP" Jellyfin.Plugin.Mcp/bin/Release/net10.0/Jellyfin.Plugin.Mcp.dll
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "CHECKSUM=$(md5sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Create or update GitHub release
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ZIP" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$ZIP" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+      - name: Update manifest on main
+        run: |
+          set -euo pipefail
+          CHANGELOG="$(awk '/^changelog:/{f=1; next} f && /^[[:space:]]/{sub(/^[[:space:]]+/, ""); printf "%s ", $0; next} f{exit}' build.yaml | sed 's/ *$//')"
+          git fetch origin main
+          git checkout -B main origin/main
+          python3 -I scripts/update-manifest.py \
+            --manifest manifest.json \
+            --version "$VERSION" \
+            --target-abi 12.4.0.0 \
+            --source-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ZIP}" \
+            --checksum "$CHECKSUM" \
+            --changelog "$CHANGELOG" \
+            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if git diff --quiet -- manifest.json; then
+            echo "manifest.json already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore: update manifest for ${GITHUB_REF_NAME} [skip ci]"
+          git push origin main
