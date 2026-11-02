@@ -67,13 +67,10 @@ public sealed class GetPersonTool : LibraryToolBase
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
         var user = GetUser(principal);
 
-        // A name is resolved without a user (people are not tied to a library); the id it yields then goes through
-        // the same visibility check as a caller-supplied id, and nothing about the person is returned before that.
-        var id = personId ?? _libraryManager.GetPerson(name!)?.Id ?? throw new ToolException("Item not found");
-        if (_lookup.GetVisible(user, id) is not Person person)
-        {
-            throw new ToolException("Item not found");
-        }
+        // Mirrors PersonsController.GetPerson / DtoService: the person is loaded without a user (people belong to no
+        // library) and only parental visibility is checked. Only person metadata is returned from this lookup; the
+        // items below come from a user-scoped query, so library access still applies.
+        var person = personId is { } id ? _lookup.GetVisiblePerson(user, id) : _lookup.GetVisiblePerson(user, name!);
 
         // PersonIds without ParentId/ItemIds: ILibraryManager adds the user's library access to the query.
         var query = new InternalItemsQuery(user)

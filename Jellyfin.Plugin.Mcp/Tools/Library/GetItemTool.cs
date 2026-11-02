@@ -48,7 +48,8 @@ public sealed class GetItemTool : LibraryToolBase
         var id = args.GetRequiredGuid("itemId");
         var user = GetUser(principal);
         var item = _lookup.GetVisible(user, id);
-        var detail = ItemMapper.Detail(item, UserDataManager.GetUserData(user, item), _libraryManager.GetPeople(item));
+        var people = _libraryManager.GetPeople(item);
+        var detail = ItemMapper.Detail(item, UserDataManager.GetUserData(user, item), people, _lookup.GetPersonIds(user, people));
         return Task.FromResult(ToolResult.Json(detail));
     }
 }

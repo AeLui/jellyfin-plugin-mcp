@@ -16,6 +16,7 @@ using Jellyfin.Plugin.Mcp.Tools.Library;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Library;
 using MediaBrowser.Model.Querying;
 using Moq;
@@ -50,7 +51,7 @@ public class CatalogueToolsTests
 
     private SearchTool Search() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
 
-    private BrowseTool Browse() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
+    private BrowseTool Browse() => new(_users.Object, _settings.Object, _userData.Object, Lookup());
 
     private GetItemTool GetItem() => new(_users.Object, _settings.Object, _userData.Object, Lookup(), _library.Object);
 
@@ -169,13 +170,28 @@ public class CatalogueToolsTests
     {
         var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat", Overview = "Cops and robbers", Genres = ["Crime"] };
         _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
-        _library.Setup(l => l.GetPeople(movie)).Returns(new List<PersonInfo> { new() { Name = "Al Pacino", Role = "Hanna", Type = PersonKind.Actor } });
+        var pacino = new Person { Id = Guid.NewGuid(), Name = "Al Pacino" };
+        var hidden = new Fakes.HiddenPerson { Id = Guid.NewGuid(), Name = "Hidden" };
+        _library.Setup(l => l.GetPeople(movie)).Returns(new List<PersonInfo>
+        {
+            // PersonInfo.Id is a credits-table row id, not the Person item id.
+            new() { Name = "Al Pacino", Role = "Hanna", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+            new() { Name = "Hidden", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+            new() { Name = "Unknown", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+        });
+        _library.Setup(l => l.GetPerson("Al Pacino")).Returns(pacino);
+        _library.Setup(l => l.GetPerson("Hidden")).Returns(hidden);
+        _library.Setup(l => l.GetPerson("Unknown")).Returns((Person?)null);
 
         var result = await GetItem().ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}"}"""), _principal, CancellationToken.None);
 
         using var doc = JsonDocument.Parse(result.Text);
         Assert.Equal("Cops and robbers", doc.RootElement.GetProperty("overview").GetString());
-        Assert.Equal("Al Pacino", doc.RootElement.GetProperty("people")[0].GetProperty("name").GetString());
+        var people = doc.RootElement.GetProperty("people");
+        Assert.Equal("Al Pacino", people[0].GetProperty("name").GetString());
+        Assert.Equal(pacino.Id.ToString("N"), people[0].GetProperty("id").GetString());
+        Assert.False(people[1].TryGetProperty("id", out _));
+        Assert.False(people[2].TryGetProperty("id", out _));
     }
 
     [Fact]
@@ -189,27 +205,33 @@ public class CatalogueToolsTests
     }
 
     [Fact]
-    public async Task Browse_FavoritesFilter_SetsIsFavorite()
+    public async Task Browse_FavoritesFilter_CallsFolderGetItemsWithUserPagingAndSort()
     {
-        var parent = new Folder { Id = Guid.NewGuid() };
-        var queries = new List<InternalItemsQuery>();
+        var parent = new Fakes.RecordingFolder { Id = Guid.NewGuid(), Result = new QueryResult<BaseItem>(5, 12, new BaseItem[] { new Movie { Id = Guid.NewGuid(), Name = "Heat" } }) };
         _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
-        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
-            .Callback<InternalItemsQuery>(queries.Add)
-            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
 
-        await Browse().ExecuteAsync(
-            Args($$"""{"parentId":"{{parent.Id}}","filter":"favorites","sortBy":"community_rating","sortOrder":"desc"}"""),
+        var result = await Browse().ExecuteAsync(
+            Args($$"""{"parentId":"{{parent.Id}}","filter":"favorites","sortBy":"community_rating","sortOrder":"desc","limit":7,"startIndex":5}"""),
             _principal,
             CancellationToken.None);
 
-        var q = queries.Last();
+        var q = Assert.Single(parent.Queries);
         Assert.True(q.IsFavorite);
         Assert.Null(q.IsPlayed);
         Assert.False(q.Recursive);
         Assert.Equal(parent.Id, q.ParentId);
+        Assert.Empty(q.IncludeItemTypes);
         Assert.Same(_user, q.User);
+        Assert.Equal(7, q.Limit);
+        Assert.Equal(5, q.StartIndex);
+        Assert.True(q.EnableTotalRecordCount);
         Assert.Equal((ItemSortBy.CommunityRating, SortOrder.Descending), Assert.Single(q.OrderBy));
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(12, doc.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal("Heat", doc.RootElement.GetProperty("items")[0].GetProperty("name").GetString());
+
+        // Strict mock: ILibraryManager.GetItemsResult (a ParentId query) must never be used for browsing.
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
     }
 
     [Theory]
@@ -217,18 +239,43 @@ public class CatalogueToolsTests
     [InlineData("played", true)]
     public async Task Browse_PlayedFilters_SetIsPlayed(string filter, bool expected)
     {
-        var parent = new Folder { Id = Guid.NewGuid() };
-        var queries = new List<InternalItemsQuery>();
+        var parent = new Fakes.RecordingFolder { Id = Guid.NewGuid() };
         _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
-        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
-            .Callback<InternalItemsQuery>(queries.Add)
-            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
 
         await Browse().ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}","filter":"{{filter}}"}"""), _principal, CancellationToken.None);
 
-        Assert.Equal(expected, queries.Last().IsPlayed);
-        Assert.Null(queries.Last().IsFavorite);
-        Assert.Equal((ItemSortBy.SortName, SortOrder.Ascending), Assert.Single(queries.Last().OrderBy));
+        var q = Assert.Single(parent.Queries);
+        Assert.Equal(expected, q.IsPlayed);
+        Assert.Null(q.IsFavorite);
+        Assert.Equal((ItemSortBy.SortName, SortOrder.Ascending), Assert.Single(q.OrderBy));
+    }
+
+    [Theory]
+    [InlineData(CollectionType.boxsets, BaseItemKind.BoxSet)]
+    [InlineData(CollectionType.playlists, BaseItemKind.Playlist)]
+    public async Task Browse_BoxSetAndPlaylistLibraries_QueryTheirItemTypes(CollectionType type, BaseItemKind kind)
+    {
+        var parent = new Fakes.RecordingCollectionFolder { Id = Guid.NewGuid(), CollectionType = type };
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
+
+        await Browse().ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}"}"""), _principal, CancellationToken.None);
+
+        var q = Assert.Single(parent.Queries);
+        Assert.Equal(new[] { kind }, q.IncludeItemTypes);
+        Assert.True(q.Recursive);
+    }
+
+    [Fact]
+    public async Task Browse_MovieLibrary_ListsDirectChildren()
+    {
+        var parent = new Fakes.RecordingCollectionFolder { Id = Guid.NewGuid(), CollectionType = CollectionType.movies };
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
+
+        await Browse().ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}"}"""), _principal, CancellationToken.None);
+
+        var q = Assert.Single(parent.Queries);
+        Assert.Empty(q.IncludeItemTypes);
+        Assert.False(q.Recursive);
     }
 
     [Fact]
@@ -242,6 +289,18 @@ public class CatalogueToolsTests
 
         Assert.Equal("Item not found", ex.Message);
         _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Browse_ParentIsNotAFolder_ReturnsNotFound()
+    {
+        var movie = new Movie { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Browse().ExecuteAsync(Args($$"""{"parentId":"{{movie.Id}}"}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
     }
 
     [Fact]

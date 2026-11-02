@@ -8,6 +8,7 @@ using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 
 namespace Jellyfin.Plugin.Mcp.Tools.Library;
 
@@ -28,7 +29,6 @@ public sealed class BrowseTool : LibraryToolBase
         "required":["parentId"]}
         """).RootElement.Clone();
 
-    private readonly ILibraryManager _libraryManager;
     private readonly ItemLookup _lookup;
 
     /// <summary>
@@ -37,12 +37,10 @@ public sealed class BrowseTool : LibraryToolBase
     /// <param name="userManager">The user manager.</param>
     /// <param name="settings">The plugin settings.</param>
     /// <param name="userDataManager">The user data manager.</param>
-    /// <param name="libraryManager">The library manager.</param>
     /// <param name="lookup">The visibility-checked item lookup.</param>
-    public BrowseTool(IUserManager userManager, IPluginSettings settings, IUserDataManager userDataManager, ILibraryManager libraryManager, ItemLookup lookup)
+    public BrowseTool(IUserManager userManager, IPluginSettings settings, IUserDataManager userDataManager, ItemLookup lookup)
         : base(userManager, settings, userDataManager)
     {
-        _libraryManager = libraryManager;
         _lookup = lookup;
     }
 
@@ -97,10 +95,21 @@ public sealed class BrowseTool : LibraryToolBase
             SortKey.Random => ItemSortBy.Random,
             _ => ItemSortBy.SortName,
         };
+
+        // Mirrors ItemsController: a library root's children belong to its physical folders, and playlist and collection
+        // libraries are lists of Playlist/BoxSet items, so the folder translates the query itself (Folder.GetItems).
+        var collectionType = (parent as IHasCollectionType)?.CollectionType;
+        BaseItemKind[] types = collectionType switch
+        {
+            CollectionType.playlists => [BaseItemKind.Playlist],
+            CollectionType.boxsets when parent is ICollectionFolder => [BaseItemKind.BoxSet],
+            _ => [],
+        };
         var query = new InternalItemsQuery(user)
         {
             ParentId = parentId,
-            Recursive = false,
+            IncludeItemTypes = types,
+            Recursive = types.Length > 0,
             StartIndex = startIndex,
             Limit = limit,
             EnableTotalRecordCount = true,
@@ -119,7 +128,9 @@ public sealed class BrowseTool : LibraryToolBase
                 break;
         }
 
-        var result = _libraryManager.GetVisibleItemsResult(query, parent is BasePluginFolder);
+        // Folder.GetItems drops children the user cannot see (IsVisible per child, IsVisibleStandalone for the
+        // playlist/collection queries), so no extra VisibleItems filtering is needed on this path.
+        var result = parent.GetItems(query);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 }

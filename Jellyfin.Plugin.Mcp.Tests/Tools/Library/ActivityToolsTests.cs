@@ -241,7 +241,7 @@ public class ActivityToolsTests
     {
         var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", Overview = "Actor", PremiereDate = new DateTime(1940, 4, 25, 0, 0, 0, DateTimeKind.Utc) };
         var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat" };
-        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns(person);
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
         _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(_queries.Add)
             .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
@@ -267,7 +267,7 @@ public class ActivityToolsTests
     public async Task GetPerson_UnspecifiedBirthDate_KeepsCalendarDate()
     {
         var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", PremiereDate = new DateTime(1940, 4, 25, 0, 0, 0, DateTimeKind.Unspecified) };
-        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns(person);
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
 
         var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
 
@@ -279,7 +279,7 @@ public class ActivityToolsTests
     public async Task GetPerson_HiddenId_ReturnsNotFoundWithoutQuerying()
     {
         var id = Guid.NewGuid();
-        _library.Setup(l => l.GetItemById<BaseItem>(id, _user)).Returns((BaseItem?)null);
+        _library.Setup(l => l.GetItemById(id)).Returns((BaseItem?)null);
 
         var ex = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), $$"""{"personId":"{{id}}"}"""));
 
@@ -291,7 +291,7 @@ public class ActivityToolsTests
     public async Task GetPerson_IdOfNonPerson_ReturnsNotFound()
     {
         var movie = new Movie { Id = Guid.NewGuid() };
-        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
+        _library.Setup(l => l.GetItemById(movie.Id)).Returns(movie);
 
         var ex = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), $$"""{"personId":"{{movie.Id}}"}"""));
 
@@ -300,16 +300,57 @@ public class ActivityToolsTests
     }
 
     [Fact]
-    public async Task GetPerson_ByName_ResolvesThenChecksVisibility()
+    public async Task GetPerson_PersonOutsideAnyLibrary_IsFoundWithoutUserScopedLookup()
+    {
+        // On a real server GetItemById<BaseItem>(id, user) does not return people; the non-user lookup does.
+        var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", Overview = "Actor" };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns((BaseItem?)null);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(_queries.Add)
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { new Movie { Id = Guid.NewGuid(), Name = "Heat" } }));
+
+        var result = await Run(Person(), $$"""{"personId":"{{person.Id}}"}""");
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal("Al Pacino", doc.RootElement.GetProperty("name").GetString());
+        Assert.Equal("Actor", doc.RootElement.GetProperty("overview").GetString());
+        Assert.Equal("Heat", doc.RootElement.GetProperty("items")[0].GetProperty("name").GetString());
+        var q = Assert.Single(_queries);
+        Assert.Same(_user, q.User);
+        Assert.Equal(Guid.Empty, q.ParentId);
+        Assert.Empty(q.ItemIds);
+    }
+
+    [Fact]
+    public async Task GetPerson_ByName_ResolvesWithoutUserScopedLookup()
     {
         var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino" };
         _library.Setup(l => l.GetPerson("Al Pacino")).Returns(person);
-        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns((BaseItem?)null);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(_queries.Add)
+            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
 
-        var ex = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), """{"name":"Al Pacino"}"""));
+        var result = await Run(Person(), """{"name":"Al Pacino"}""");
 
-        Assert.Equal("Item not found", ex.Message);
-        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(person.Id.ToString("N"), doc.RootElement.GetProperty("id").GetString());
+        Assert.Equal(new[] { person.Id }, Assert.Single(_queries).PersonIds);
+    }
+
+    [Fact]
+    public async Task GetPerson_NotParentallyAllowed_ReturnsNotFoundWithoutQuerying()
+    {
+        var person = new Fakes.HiddenPerson { Id = Guid.NewGuid(), Name = "Al Pacino" };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetPerson("Al Pacino")).Returns(person);
+
+        var byId = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), $$"""{"personId":"{{person.Id}}"}"""));
+        var byName = await Assert.ThrowsAsync<ToolException>(() => Run(Person(), """{"name":"Al Pacino"}"""));
+
+        Assert.Equal("Item not found", byId.Message);
+        Assert.Equal("Item not found", byName.Message);
+        Assert.Empty(_queries);
     }
 
     [Fact]

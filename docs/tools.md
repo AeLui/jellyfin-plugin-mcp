@@ -72,7 +72,7 @@ Search the library by text, optionally filtered by type, genre, production year 
 
 ### jellyfin_browse
 
-List the direct children of a library or folder with sorting and played/favorite filters.
+List the direct children of a library or folder with sorting and played/favorite filters. Libraries are listed the way Jellyfin's own item listing does (the library's folders are resolved by the server; playlist and collection libraries list their playlists and collections).
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
@@ -110,11 +110,11 @@ Get a person (actor, director, ...) by id or name, with the items of theirs that
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| `personId` | string | one of | | Person id, as listed in the `people` of an item. |
+| `personId` | string | one of | | Person id, as listed in the `people` of `jellyfin_get_item`. |
 | `name` | string | one of | | Exact person name. |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging of the items list. |
 
-Either `personId` or `name` is required. A person may be returned with metadata but an empty `items` list when none of their work is visible to the user.
+Either `personId` or `name` is required. People belong to no library, so only the person's parental visibility is checked (as Jellyfin's own person lookup does); the `items` list is always limited to what the user can see. A person may be returned with metadata but an empty `items` list when none of their work is visible to the user.
 
 ```json
 {"name":"jellyfin_get_person","arguments":{"name":"Harrison Ford","limit":2}}

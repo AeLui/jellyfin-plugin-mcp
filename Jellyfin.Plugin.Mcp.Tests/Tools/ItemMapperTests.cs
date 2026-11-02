@@ -64,9 +64,10 @@ public class ItemMapperTests
             CriticRating = 87,
             Path = "/secret/heat.mkv",
         };
+        var personItemId = Guid.NewGuid();
         var people = new List<PersonInfo> { new() { Name = "Al Pacino", Role = "Hanna", Type = PersonKind.Actor, Id = Guid.NewGuid() } };
 
-        var json = Serialize(ItemMapper.Detail(movie, null, people));
+        var json = Serialize(ItemMapper.Detail(movie, null, people, new Dictionary<string, Guid> { ["Al Pacino"] = personItemId }));
 
         Assert.Equal("Cops and robbers", json.GetProperty("overview").GetString());
         Assert.Equal("Crime", json.GetProperty("genres")[0].GetString());
@@ -78,14 +79,14 @@ public class ItemMapperTests
         Assert.Equal("Al Pacino", person.GetProperty("name").GetString());
         Assert.Equal("Hanna", person.GetProperty("role").GetString());
         Assert.Equal("Actor", person.GetProperty("type").GetString());
-        Assert.True(person.TryGetProperty("id", out _));
+        Assert.Equal(personItemId.ToString("N"), person.GetProperty("id").GetString());
         Assert.DoesNotContain("secret", json.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]
     public void ItemMapper_Detail_WithoutPeopleOrGenres_OmitsThem()
     {
-        var json = Serialize(ItemMapper.Detail(new Movie { Id = Guid.NewGuid(), Name = "X" }, null, Array.Empty<PersonInfo>()));
+        var json = Serialize(ItemMapper.Detail(new Movie { Id = Guid.NewGuid(), Name = "X" }, null, Array.Empty<PersonInfo>(), new Dictionary<string, Guid>()));
 
         Assert.False(json.TryGetProperty("people", out _));
         Assert.False(json.TryGetProperty("genres", out _));

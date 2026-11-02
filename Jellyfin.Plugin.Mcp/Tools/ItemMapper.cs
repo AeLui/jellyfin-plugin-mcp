@@ -47,10 +47,12 @@ public static class ItemMapper
     /// <param name="item">The item.</param>
     /// <param name="data">The user's data for the item, if any.</param>
     /// <param name="people">The people attached to the item.</param>
+    /// <param name="personIds">Person item ids by name, for the people the user may see; others get no id.</param>
     /// <returns>The detail.</returns>
-    public static object Detail(BaseItem item, UserItemData? data, IReadOnlyList<PersonInfo> people)
+    public static object Detail(BaseItem item, UserItemData? data, IReadOnlyList<PersonInfo> people, IReadOnlyDictionary<string, Guid> personIds)
     {
         ArgumentNullException.ThrowIfNull(people);
+        ArgumentNullException.ThrowIfNull(personIds);
         var result = BuildSummary(item, data);
         Add(result, "overview", string.IsNullOrWhiteSpace(item.Overview) ? null : item.Overview);
         Add(result, "genres", NonEmpty(item.Genres));
@@ -69,7 +71,7 @@ public static class ItemMapper
                     Add(person, "name", p.Name);
                     Add(person, "role", string.IsNullOrEmpty(p.Role) ? null : p.Role);
                     Add(person, "type", p.Type.ToString());
-                    Add(person, "id", p.Id == Guid.Empty ? null : p.Id.ToString("N", CultureInfo.InvariantCulture));
+                    Add(person, "id", personIds.TryGetValue(p.Name, out var personId) ? personId.ToString("N", CultureInfo.InvariantCulture) : null);
                     return person;
                 }).ToList());
         }

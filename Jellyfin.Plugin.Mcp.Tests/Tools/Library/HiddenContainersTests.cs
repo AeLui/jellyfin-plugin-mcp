@@ -83,25 +83,6 @@ public class HiddenContainersTests
         other = Playlist("secret", Guid.NewGuid());
     }
 
-    [Fact]
-    public async Task Browse_PlaylistsFolder_ListsOnlyVisiblePlaylists_WithExactCountAndPaging()
-    {
-        MockPlaylists(out var mine, out var shared, out var other);
-        var folder = new Mock<BasePluginFolder> { CallBase = true };
-        folder.Object.Id = Guid.NewGuid();
-        _library.Setup(l => l.GetItemById<BaseItem>(folder.Object.Id, _user)).Returns(folder.Object);
-        Returns(3, other, mine, shared);
-        var tool = new BrowseTool(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
-
-        var all = await tool.ExecuteAsync(Args($$"""{"parentId":"{{folder.Object.Id}}"}"""), _principal, CancellationToken.None);
-        var page = await tool.ExecuteAsync(Args($$"""{"parentId":"{{folder.Object.Id}}","limit":1,"startIndex":1}"""), _principal, CancellationToken.None);
-
-        Assert.Equal(new[] { "mine", "shared" }, Names(all));
-        Assert.Equal(2, Total(all));
-        Assert.Equal(new[] { "shared" }, Names(page));
-        Assert.Equal(2, Total(page));
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -172,7 +153,7 @@ public class HiddenContainersTests
     public async Task GetPerson_HidesInvisibleCollections()
     {
         var person = new Person { Id = Guid.NewGuid(), Name = "Al" };
-        _library.Setup(l => l.GetItemById<BaseItem>(person.Id, _user)).Returns(person);
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
         Returns(2, BoxSet("private", false), new Movie { Id = Guid.NewGuid(), Name = "Heat" });
         var tool = new GetPersonTool(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
 
@@ -197,23 +178,6 @@ public class HiddenContainersTests
         Assert.Equal(2, q.StartIndex);
         Assert.Equal(new[] { "Movie" }, Names(result));
         Assert.Equal(39, Total(result));
-    }
-
-    [Fact]
-    public async Task Browse_NonPluginFolderParent_RerunsUnpagedWhenAGuardedItemWasRemoved()
-    {
-        var parent = new Folder { Id = Guid.NewGuid() };
-        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
-        var movie = new Movie { Id = Guid.NewGuid(), Name = "Movie" };
-        Returns(2, movie, Playlist("secret", Guid.NewGuid()));
-        var tool = new BrowseTool(_users.Object, _settings.Object, _userData.Object, _library.Object, Lookup());
-
-        var result = await tool.ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}","limit":1}"""), _principal, CancellationToken.None);
-
-        Assert.Equal(2, _queries.Count);
-        Assert.Null(_queries[1].Limit);
-        Assert.Equal(new[] { "Movie" }, Names(result));
-        Assert.Equal(1, Total(result));
     }
 
     [Fact]
