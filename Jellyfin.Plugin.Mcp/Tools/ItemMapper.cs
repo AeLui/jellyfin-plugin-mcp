@@ -77,6 +77,21 @@ public static class ItemMapper
         return result;
     }
 
+    /// <summary>
+    /// Formats a timestamp as ISO 8601 in UTC.
+    /// </summary>
+    /// <remarks>
+    /// Jellyfin stores UTC timestamps, but values read back from the database are often <see cref="DateTimeKind.Unspecified"/>;
+    /// <c>ToUniversalTime()</c> would treat those as local time and shift them.
+    /// </remarks>
+    /// <param name="value">The timestamp; <see cref="DateTimeKind.Unspecified"/> is taken as UTC.</param>
+    /// <returns>The formatted value, or <c>null</c> when there is none.</returns>
+    internal static string? Utc(DateTime? value)
+        => value is null
+            ? null
+            : (value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+                .ToString("O", CultureInfo.InvariantCulture);
+
     private static Dictionary<string, object> BuildSummary(BaseItem item, UserItemData? data)
     {
         ArgumentNullException.ThrowIfNull(item);
@@ -101,14 +116,6 @@ public static class ItemMapper
 
         return result;
     }
-
-    // Jellyfin stores UTC timestamps, but values read back from the database are often DateTimeKind.Unspecified;
-    // ToUniversalTime() would treat those as local time and shift them.
-    private static string? Utc(DateTime? value)
-        => value is null
-            ? null
-            : (value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
-                .ToString("O", CultureInfo.InvariantCulture);
 
     private static string? SeriesName(BaseItem item)
         => item switch

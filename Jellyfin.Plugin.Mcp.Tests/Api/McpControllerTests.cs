@@ -153,6 +153,9 @@ public class McpControllerTests
         services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
         services.AddSingleton(new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object);
         services.AddSingleton(new Mock<MediaBrowser.Controller.Playlists.IPlaylistManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Providers.IProviderManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Model.IO.IFileSystem>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Model.Tasks.ITaskManager>().Object);
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
@@ -163,10 +166,23 @@ public class McpControllerTests
         Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_next_up");
         Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_manage_playlist");
         Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_list_playlists");
+        Assert.Contains(scope.ServiceProvider.GetServices<IMcpTool>(), t => t.Name == "jellyfin_list_users");
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<JsonRpcDispatcher>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<TokenAuthenticator>());
         Assert.Same(provider.GetRequiredService<ITokenStore>(), provider.GetRequiredService<ITokenStore>());
         Assert.Same(provider.GetRequiredService<AuthFailureLimiter>(), provider.GetRequiredService<AuthFailureLimiter>());
         Assert.Same(provider.GetRequiredService<TokenAuthenticator>(), provider.GetRequiredService<TokenAuthenticator>());
+    }
+
+    [Fact]
+    public void Registrator_RegistersExactly22Tools()
+    {
+        var services = new ServiceCollection();
+        new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
+
+        var tools = services.Where(d => d.ServiceType == typeof(IMcpTool)).Select(d => d.ImplementationType!).ToList();
+
+        Assert.Equal(22, tools.Count);
+        Assert.Equal(22, tools.Distinct().Count());
     }
 }
