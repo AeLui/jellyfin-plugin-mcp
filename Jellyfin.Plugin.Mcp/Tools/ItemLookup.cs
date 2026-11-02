@@ -26,8 +26,10 @@ public sealed class ItemLookup
     /// Gets an item the user is allowed to see.
     /// </summary>
     /// <remarks>
-    /// Goes through a user-aware query so items outside the user's libraries or parental rating look
-    /// exactly like items that do not exist. Never replace this with <c>GetItemById</c> alone.
+    /// Uses the user-aware <c>GetItemById</c> overload, which checks parental rating, tags and the user's
+    /// enabled/blocked libraries, so hidden items look exactly like missing ones. An <c>InternalItemsQuery</c>
+    /// with <c>ItemIds</c> or <c>ParentId</c> does not enforce library access, so it must not be used for this.
+    /// Never replace this with the non-user <c>GetItemById</c>.
     /// </remarks>
     /// <param name="user">The user.</param>
     /// <param name="id">The item id supplied by the caller.</param>
@@ -36,14 +38,6 @@ public sealed class ItemLookup
     public BaseItem GetVisible(User user, Guid id)
     {
         ArgumentNullException.ThrowIfNull(user);
-        var query = new InternalItemsQuery(user)
-        {
-            ItemIds = [id],
-            Limit = 1,
-            EnableTotalRecordCount = false,
-        };
-
-        var items = _libraryManager.GetItemsResult(query).Items;
-        return items.Count > 0 ? items[0] : throw new ToolException("Item not found");
+        return _libraryManager.GetItemById<BaseItem>(id, user) ?? throw new ToolException("Item not found");
     }
 }

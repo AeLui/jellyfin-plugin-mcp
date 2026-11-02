@@ -42,7 +42,7 @@ public class CatalogueToolsTests
 
     private static ToolArguments Args(string json) => new(JsonDocument.Parse(json).RootElement.Clone());
 
-    private SearchTool Search() => new(_users.Object, _settings.Object, _userData.Object, _library.Object);
+    private SearchTool Search() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, new ItemLookup(_library.Object));
 
     private BrowseTool Browse() => new(_users.Object, _settings.Object, _userData.Object, _library.Object, new ItemLookup(_library.Object));
 
@@ -56,6 +56,7 @@ public class CatalogueToolsTests
             .Callback<InternalItemsQuery>(queries.Add)
             .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
         var library = Guid.NewGuid();
+        _library.Setup(l => l.GetItemById<BaseItem>(library, _user)).Returns(new Folder { Id = library });
 
         var result = await Search().ExecuteAsync(
             Args($$"""{"query":"matrix","types":["movie","music_album"],"genres":["Action"],"yearFrom":1999,"yearTo":2003,"libraryId":"{{library}}","limit":10000,"startIndex":5}"""),
@@ -68,8 +69,9 @@ public class CatalogueToolsTests
         Assert.Equal("matrix", q.SearchTerm);
         Assert.Equal(new[] { BaseItemKind.Movie, BaseItemKind.MusicAlbum }, q.IncludeItemTypes);
         Assert.Equal(new[] { "Action" }, q.Genres);
-        Assert.Equal(1999, q.MinPremiereDate!.Value.Year);
-        Assert.Equal(2003, q.MaxPremiereDate!.Value.Year);
+        Assert.Equal(new[] { 1999, 2000, 2001, 2002, 2003 }, q.Years);
+        Assert.Null(q.MinPremiereDate);
+        Assert.Null(q.MaxPremiereDate);
         Assert.Equal(library, q.ParentId);
         Assert.True(q.Recursive);
         Assert.Equal(50, q.Limit);
@@ -144,27 +146,23 @@ public class CatalogueToolsTests
     public async Task GetItem_NotVisibleToUser_ReturnsNotFound()
     {
         var id = Guid.NewGuid();
-        InternalItemsQuery? captured = null;
-        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
-            .Callback<InternalItemsQuery>(q => captured = q)
-            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
+        // The user-aware overload says no, although the unrestricted lookup would find the item.
+        _library.Setup(l => l.GetItemById<BaseItem>(id, _user)).Returns((BaseItem?)null);
+        _library.Setup(l => l.GetItemById(id)).Returns(new Movie { Id = id });
 
-        // GetItemById is not set up on the strict mock: using it would throw a MockException instead of "Item not found".
         var ex = await Assert.ThrowsAsync<ToolException>(
             () => GetItem().ExecuteAsync(Args($$"""{"itemId":"{{id}}"}"""), _principal, CancellationToken.None));
 
         Assert.Equal("Item not found", ex.Message);
-        Assert.Same(_user, captured!.User);
-        Assert.Equal(new[] { id }, captured.ItemIds);
         _library.Verify(l => l.GetItemById(It.IsAny<Guid>()), Times.Never);
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
     }
 
     [Fact]
     public async Task GetItem_Visible_ReturnsDetailWithPeople()
     {
         var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat", Overview = "Cops and robbers", Genres = ["Crime"] };
-        _library.Setup(l => l.GetItemsResult(It.Is<InternalItemsQuery>(q => q.ItemIds.Contains(movie.Id))))
-            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
         _library.Setup(l => l.GetPeople(movie)).Returns(new List<PersonInfo> { new() { Name = "Al Pacino", Role = "Hanna", Type = PersonKind.Actor } });
 
         var result = await GetItem().ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}"}"""), _principal, CancellationToken.None);
@@ -189,9 +187,10 @@ public class CatalogueToolsTests
     {
         var parent = new Folder { Id = Guid.NewGuid() };
         var queries = new List<InternalItemsQuery>();
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
         _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(queries.Add)
-            .Returns((InternalItemsQuery q) => new QueryResult<BaseItem>(0, 1, q.ItemIds.Length > 0 ? new BaseItem[] { parent } : Array.Empty<BaseItem>()));
+            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
 
         await Browse().ExecuteAsync(
             Args($$"""{"parentId":"{{parent.Id}}","filter":"favorites","sortBy":"community_rating","sortOrder":"desc"}"""),
@@ -214,9 +213,10 @@ public class CatalogueToolsTests
     {
         var parent = new Folder { Id = Guid.NewGuid() };
         var queries = new List<InternalItemsQuery>();
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
         _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(queries.Add)
-            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { parent }));
+            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
 
         await Browse().ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}","filter":"{{filter}}"}"""), _principal, CancellationToken.None);
 
@@ -226,15 +226,76 @@ public class CatalogueToolsTests
     }
 
     [Fact]
-    public async Task Browse_ParentNotVisible_ReturnsNotFound()
+    public async Task Browse_ParentNotVisible_ReturnsNotFoundWithoutQuerying()
     {
-        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
-            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
+        var parent = Guid.NewGuid();
+        _library.Setup(l => l.GetItemById<BaseItem>(parent, _user)).Returns((BaseItem?)null);
 
         var ex = await Assert.ThrowsAsync<ToolException>(
-            () => Browse().ExecuteAsync(Args($$"""{"parentId":"{{Guid.NewGuid()}}"}"""), _principal, CancellationToken.None));
+            () => Browse().ExecuteAsync(Args($$"""{"parentId":"{{parent}}"}"""), _principal, CancellationToken.None));
 
         Assert.Equal("Item not found", ex.Message);
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Search_HiddenLibraryId_ReturnsNotFoundWithoutQuerying()
+    {
+        var library = Guid.NewGuid();
+        _library.Setup(l => l.GetItemById<BaseItem>(library, _user)).Returns((BaseItem?)null);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Search().ExecuteAsync(Args($$"""{"query":"x","libraryId":"{{library}}"}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        _library.Verify(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Search_YearFromOnly_RunsToCurrentYear()
+    {
+        InternalItemsQuery? captured = null;
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => captured = q)
+            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
+        var now = DateTime.UtcNow.Year;
+
+        await Search().ExecuteAsync(Args($$"""{"query":"x","yearFrom":{{now - 2}}}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(new[] { now - 2, now - 1, now }, captured!.Years);
+    }
+
+    [Fact]
+    public async Task Search_YearToOnly_StartsAtFloor()
+    {
+        InternalItemsQuery? captured = null;
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => captured = q)
+            .Returns(new QueryResult<BaseItem>(0, 0, Array.Empty<BaseItem>()));
+
+        await Search().ExecuteAsync(Args("""{"query":"x","yearTo":1890}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(1880, captured!.Years[0]);
+        Assert.Equal(1890, captured.Years[^1]);
+        Assert.Equal(11, captured.Years.Length);
+    }
+
+    [Fact]
+    public async Task Search_YearFromAfterYearTo_IsErrorNamingArgument()
+    {
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Search().ExecuteAsync(Args("""{"query":"x","yearFrom":2010,"yearTo":2000}"""), _principal, CancellationToken.None));
+
+        Assert.Contains("'yearFrom'", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_PersonType_IsRejected()
+    {
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Search().ExecuteAsync(Args("""{"query":"x","types":["person"]}"""), _principal, CancellationToken.None));
+
+        Assert.Contains("'types'", ex.Message, StringComparison.Ordinal);
     }
 
     [Theory]
