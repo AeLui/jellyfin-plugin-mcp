@@ -84,7 +84,7 @@ Stop the server with `docker compose -f docker-compose.dev.yml down`.
 
 ## Releasing
 
-1. Set `version` in `build.yaml` (and the `Version` properties in `Directory.Build.props`) to the new version, for example `0.1.0.0`; update `changelog`. Set the same version, in three parts (`0.1.0`), in `server.json`.
+1. Set `version` in `build.yaml` (and the `Version` properties in `Directory.Build.props`) to the new version, for example `0.1.0.0`; update `changelog`. Set the same version, in three parts (`0.1.0`), in `server.json` and `.claude-plugin/plugin.json`. The Claude Code plugin is pinned to that version, so changes to `skills/` or `.claude-plugin/` reach users only when it changes; bump it in the release commit so the skill never describes tools that are not released yet. If the skill changed, optionally upload a new zip of `skills/jellyfin-mcp` to the Agensi listing.
 2. Make sure CI is green on `main`.
 3. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
