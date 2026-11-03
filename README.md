@@ -23,7 +23,16 @@ More detail, including a manual install, is in [docs/installation.md](docs/insta
 
 Replace `https://jellyfin.example.com` with your server address and `jmcp_...` with your token.
 
-Claude Code:
+Claude Code, with the plugin from this repository's marketplace (connects the server and adds the [agent skill](#agent-skill); it asks for the URL and the token, and keeps the token in your system's credential store):
+
+```
+/plugin marketplace add AeLui/jellyfin-plugin-mcp
+/plugin install jellyfin-mcp@jellyfin-plugin-mcp
+```
+
+On Claude Code 2.1.275 or later, one step is enough: `/plugin install jellyfin-mcp --marketplace AeLui/jellyfin-plugin-mcp`. To change the URL or token later, run `/plugin configure jellyfin-mcp@jellyfin-plugin-mcp`.
+
+Claude Code, server only:
 
 ```bash
 claude mcp add --transport http jellyfin https://jellyfin.example.com/mcp \
@@ -61,7 +70,13 @@ Full reference: [docs/tools.md](docs/tools.md).
 
 ## Agent skill
 
-[skills/jellyfin-mcp/SKILL.md](skills/jellyfin-mcp/SKILL.md) is an optional [Agent Skill](https://agentskills.io) that teaches an assistant when and how to use these tools: getting ids before acting, picking a playback session, paging, and asking before destructive actions. For Claude Code, copy the `skills/jellyfin-mcp` folder into `~/.claude/skills/` (or `.claude/skills/` in a project).
+[skills/jellyfin-mcp/SKILL.md](skills/jellyfin-mcp/SKILL.md) is an optional [Agent Skill](https://agentskills.io) that teaches an assistant when and how to use these tools: getting ids before acting, picking a playback session, paging, and asking before destructive actions.
+
+The Claude Code plugin above includes it. Other agents: copy the `skills/jellyfin-mcp` folder into their skills directory (for Claude Code without the plugin, `~/.claude/skills/` or `.claude/skills/` in a project). If you install the plugin, remove any server you added with `claude mcp add`, or the tools show up twice.
+
+## Privacy
+
+The plugin runs inside your Jellyfin server and makes no outbound connections. The Claude Code plugin connects only to the Jellyfin URL you configure. What your assistant does with the tool results is governed by the assistant's own privacy policy.
 
 ## Documentation
 

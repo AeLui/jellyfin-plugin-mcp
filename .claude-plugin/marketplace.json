@@ -1,0 +1,17 @@
+{
+  "name": "jellyfin-plugin-mcp",
+  "description": "Agent skill for the Jellyfin MCP Server plugin",
+  "owner": {
+    "name": "AeLui",
+    "url": "https://github.com/AeLui"
+  },
+  "plugins": [
+    {
+      "name": "jellyfin-mcp",
+      "source": "./",
+      "description": "Connects your agent to the Jellyfin MCP Server plugin and teaches it to search, recommend, play and manage your Jellyfin library",
+      "category": "productivity",
+      "tags": ["jellyfin", "mcp", "media-server", "home-server"]
+    }
+  ]
+}

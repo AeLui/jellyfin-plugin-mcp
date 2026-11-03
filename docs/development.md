@@ -17,6 +17,7 @@ docker-compose.dev.yml      local Jellyfin 12.4
 manifest.json               plugin repository manifest (maintained by the release job)
 build.yaml                  plugin metadata and version
 server.json                 MCP Registry entry (published by hand, see Releasing)
+.claude-plugin/             Claude Code plugin marketplace: the skill plus the MCP connection (URL and token as userConfig); check with `claude plugin validate .`
 ```
 
 ## Commands

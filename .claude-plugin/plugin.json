@@ -1,0 +1,36 @@
+{
+  "name": "jellyfin-mcp",
+  "displayName": "Jellyfin MCP",
+  "description": "Connects your agent to the Jellyfin MCP Server plugin and teaches it to search, recommend, play and manage your Jellyfin library with the jellyfin_* tools",
+  "author": {
+    "name": "AeLui",
+    "url": "https://github.com/AeLui"
+  },
+  "homepage": "https://github.com/AeLui/jellyfin-plugin-mcp",
+  "repository": "https://github.com/AeLui/jellyfin-plugin-mcp",
+  "privacyPolicyUrl": "https://github.com/AeLui/jellyfin-plugin-mcp#privacy",
+  "license": "GPL-3.0",
+  "keywords": ["jellyfin", "mcp", "media-server", "home-server", "skill"],
+  "userConfig": {
+    "jellyfin_url": {
+      "type": "string",
+      "title": "Jellyfin URL",
+      "description": "Base URL of your Jellyfin server with the MCP Server plugin, without /mcp (for example https://jellyfin.example.com)"
+    },
+    "jellyfin_token": {
+      "type": "string",
+      "title": "Jellyfin MCP token",
+      "description": "Token created in Jellyfin Dashboard > Plugins > MCP Server",
+      "sensitive": true
+    }
+  },
+  "mcpServers": {
+    "jellyfin": {
+      "type": "http",
+      "url": "${user_config.jellyfin_url}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${user_config.jellyfin_token}"
+      }
+    }
+  }
+}
