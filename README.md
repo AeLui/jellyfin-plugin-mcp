@@ -59,6 +59,10 @@ The token dialog in the plugin page generates both snippets for you. The Claude 
 
 Full reference: [docs/tools.md](docs/tools.md).
 
+## Agent skill
+
+[skills/jellyfin-mcp/SKILL.md](skills/jellyfin-mcp/SKILL.md) is an optional [Agent Skill](https://agentskills.io) that teaches an assistant when and how to use these tools: getting ids before acting, picking a playback session, paging, and asking before destructive actions. For Claude Code, copy the `skills/jellyfin-mcp` folder into `~/.claude/skills/` (or `.claude/skills/` in a project).
+
 ## Documentation
 
 - [Installation and client setup](docs/installation.md)
@@ -67,6 +71,10 @@ Full reference: [docs/tools.md](docs/tools.md).
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)
 - [Roadmap](docs/roadmap.md)
+
+## Support the project
+
+The plugin is free and open source. If it is useful to you, you can support its development through [GitHub Sponsors](https://github.com/sponsors/AeLui).
 
 ## License
 
