@@ -16,6 +16,7 @@ scripts/                    update-manifest.py (+ unit tests)
 docker-compose.dev.yml      local Jellyfin 12.4
 manifest.json               plugin repository manifest (maintained by the release job)
 build.yaml                  plugin metadata and version
+server.json                 MCP Registry entry (published by hand, see Releasing)
 ```
 
 ## Commands
@@ -82,7 +83,7 @@ Stop the server with `docker compose -f docker-compose.dev.yml down`.
 
 ## Releasing
 
-1. Set `version` in `build.yaml` (and the `Version` properties in `Directory.Build.props`) to the new version, for example `0.1.0.0`; update `changelog`.
+1. Set `version` in `build.yaml` (and the `Version` properties in `Directory.Build.props`) to the new version, for example `0.1.0.0`; update `changelog`. Set the same version, in three parts (`0.1.0`), in `server.json`.
 2. Make sure CI is green on `main`.
 3. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
@@ -98,6 +99,18 @@ The release workflow then:
 Note: step 4 pushes to `main` with the workflow's `GITHUB_TOKEN`. If `main` ever gets branch protection that blocks direct pushes, the manifest update will fail and the release job must be changed (for example to open a pull request, or to allow the Actions bot to bypass the rule).
 
 Users receive the update through the repository URL `https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/manifest.json`.
+
+### MCP Registry
+
+The plugin is listed in the official MCP Registry as `io.github.AeLui/jellyfin-plugin-mcp`, described by `server.json` (a remote-only entry: each user fills in `jellyfin_host` and the `Authorization` header). After a release, publish the new version from the repository root with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases):
+
+```
+mcp-publisher login github   # as AeLui
+mcp-publisher validate
+mcp-publisher publish
+```
+
+The registry allows each remote URL for only one server, so keep the `{jellyfin_host}` variable name (`https://{host}/mcp` is already taken by another server).
 
 ## Supporting a new Jellyfin version
 

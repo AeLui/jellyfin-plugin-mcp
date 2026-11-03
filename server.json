@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AeLui/jellyfin-plugin-mcp",
+  "title": "Jellyfin MCP Server",
+  "description": "Jellyfin plugin: search, play and manage your media library from AI assistants, per-user tokens.",
+  "repository": {
+    "url": "https://github.com/AeLui/jellyfin-plugin-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/AeLui/jellyfin-plugin-mcp",
+  "version": "0.1.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{jellyfin_host}/mcp",
+      "variables": {
+        "jellyfin_host": {
+          "description": "Your Jellyfin server host with the MCP Server plugin installed, e.g. jellyfin.example.com or jellyfin.example.com:8920",
+          "isRequired": true
+        }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "\"Bearer <token>\" with a token created in Jellyfin Dashboard > Plugins > MCP Server",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
