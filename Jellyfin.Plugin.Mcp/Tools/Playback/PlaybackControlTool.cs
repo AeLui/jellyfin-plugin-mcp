@@ -18,6 +18,11 @@ public sealed class PlaybackControlTool : PlaybackToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"sessionId":{"type":"string","description":"Session id from jellyfin_list_sessions."},"command":{"type":"string","enum":["pause","unpause","stop","seek","next","previous"]},"positionMinutes":{"type":"number","minimum":0,"description":"Target position in minutes; required for seek."}},"required":["sessionId","command"]}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object(
+        "\"sessionId\":{\"type\":\"string\"},\"command\":{\"type\":\"string\"}",
+        "sessionId",
+        "command");
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PlaybackControlTool"/> class.
     /// </summary>
@@ -51,6 +56,9 @@ public sealed class PlaybackControlTool : PlaybackToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, false, true);

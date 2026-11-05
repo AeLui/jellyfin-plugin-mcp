@@ -10,10 +10,12 @@ using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tests.Auth;
+using Jellyfin.Plugin.Mcp.Tests.Tools;
 using Jellyfin.Plugin.Mcp.Tools;
 using Jellyfin.Plugin.Mcp.Tools.Playback;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
@@ -92,7 +94,7 @@ public class PlaybackToolsTests
 
         var result = await List().ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
 
-        var item = Assert.Single(Parse(result).EnumerateArray());
+        var item = Assert.Single(Parse(result).GetProperty("items").EnumerateArray());
         Assert.Equal("mine", item.GetProperty("sessionId").GetString());
         Assert.True(item.GetProperty("isPaused").GetBoolean());
         Assert.Equal(3, item.GetProperty("positionMinutes").GetDouble());
@@ -109,7 +111,7 @@ public class PlaybackToolsTests
 
         var result = await List().ExecuteAsync(Args("{}"), _adminPrincipal, CancellationToken.None);
 
-        Assert.Equal(new[] { "mine", "theirs" }, Parse(result).EnumerateArray().Select(e => e.GetProperty("sessionId").GetString()));
+        Assert.Equal(new[] { "mine", "theirs" }, Parse(result).GetProperty("items").EnumerateArray().Select(e => e.GetProperty("sessionId").GetString()));
     }
 
     [Fact]
@@ -163,7 +165,7 @@ public class PlaybackToolsTests
         var message = await Assert.ThrowsAsync<ToolException>(() =>
             Message().ExecuteAsync(Args("""{"sessionId":"theirs","text":"hi"}"""), _adminPrincipal, CancellationToken.None));
 
-        Assert.Equal("mine", Assert.Single(Parse(listed).EnumerateArray()).GetProperty("sessionId").GetString());
+        Assert.Equal("mine", Assert.Single(Parse(listed).GetProperty("items").EnumerateArray()).GetProperty("sessionId").GetString());
         Assert.All(new[] { play, control, message }, e => Assert.Equal("Session not found", e.Message));
         NeverSent();
     }
@@ -382,5 +384,56 @@ public class PlaybackToolsTests
         Assert.False(Play().Annotations.ReadOnly);
         Assert.True(Control().Annotations.Idempotent);
         Assert.False(Play().Annotations.Idempotent);
+    }
+
+    [Fact]
+    public async Task ListSessions_WrapsInItemsAndConformsToOutputSchema()
+    {
+        var full = AddSession("full", _user.Id, positionTicks: 90 * TimeSpan.TicksPerSecond);
+        full.FullNowPlayingItem = new Episode { Id = Guid.NewGuid(), Name = "Pilot", SeriesName = "Lost", ParentIndexNumber = 1, IndexNumber = 1 };
+        var dtoOnly = AddSession("dto", _user.Id, isPaused: true);
+        dtoOnly.NowPlayingItem = new MediaBrowser.Model.Dto.BaseItemDto { Id = Guid.NewGuid(), Name = "Song" };
+        AddSession("idle", _user.Id);
+        var tool = List();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        Assert.Equal(new[] { "full", "dto", "idle" }, Parse(result).GetProperty("items").EnumerateArray().Select(e => e.GetProperty("sessionId").GetString()));
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task Play_ConformsToOutputSchema()
+    {
+        AddSession("mine", _user.Id);
+        var item = new Movie { Id = Guid.NewGuid(), Name = "M" };
+        _library.Setup(l => l.GetItemById<BaseItem>(item.Id, _user)).Returns(item);
+        _sessionManager.Setup(m => m.SendPlayCommand(It.IsAny<string>(), "mine", It.IsAny<PlayRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var tool = Play();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{item.Id}}"]}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Control_ConformsToOutputSchema()
+    {
+        AddSession("mine", _user.Id);
+        _sessionManager.Setup(m => m.SendPlaystateCommand(string.Empty, "mine", It.IsAny<PlaystateRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var tool = Control();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("""{"sessionId":"mine","command":"pause"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendMessage_ConformsToOutputSchema()
+    {
+        AddSession("mine", _user.Id);
+        _sessionManager.Setup(m => m.SendMessageCommand(string.Empty, "mine", It.IsAny<MessageCommand>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var tool = Message();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("""{"sessionId":"mine","text":"Dinner"}"""), _principal, CancellationToken.None));
     }
 }

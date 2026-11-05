@@ -23,6 +23,11 @@ public sealed class SendMessageTool : PlaybackToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"sessionId":{"type":"string","description":"Session id from jellyfin_list_sessions."},"text":{"type":"string","minLength":1,"maxLength":500},"header":{"type":"string"},"timeoutSeconds":{"type":"integer","minimum":1,"description":"How long the message stays visible. Default 10."}},"required":["sessionId","text"]}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object(
+        "\"sessionId\":{\"type\":\"string\"},\"sent\":{\"type\":\"boolean\"}",
+        "sessionId",
+        "sent");
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SendMessageTool"/> class.
     /// </summary>
@@ -46,6 +51,9 @@ public sealed class SendMessageTool : PlaybackToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, false, false);

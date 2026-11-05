@@ -22,6 +22,12 @@ public sealed class PlayTool : PlaybackToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"sessionId":{"type":"string","description":"Session id from jellyfin_list_sessions."},"itemIds":{"type":"array","items":{"type":"string"},"minItems":1,"description":"Item ids (GUIDs) to play."},"mode":{"type":"string","enum":["now","next","last"],"description":"Play now (default), play next or add to the end of the queue."},"startPositionMinutes":{"type":"integer","minimum":0,"description":"Where to start, in minutes."}},"required":["sessionId","itemIds"]}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object(
+        "\"sessionId\":{\"type\":\"string\"},\"mode\":{\"type\":\"string\",\"enum\":[\"now\",\"next\",\"last\"]},\"itemCount\":{\"type\":\"integer\"}",
+        "sessionId",
+        "mode",
+        "itemCount");
+
     private readonly ItemLookup _lookup;
 
     /// <summary>
@@ -56,6 +62,9 @@ public sealed class PlayTool : PlaybackToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, false, false);

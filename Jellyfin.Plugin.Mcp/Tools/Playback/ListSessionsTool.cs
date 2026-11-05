@@ -19,6 +19,17 @@ public sealed class ListSessionsTool : PlaybackToolBase
 {
     private static readonly JsonElement Schema = JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement.Clone();
 
+    private static readonly JsonElement SessionsSchema = OutputSchemas.Object(
+        "\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(
+            "\"sessionId\":{\"type\":\"string\"},\"deviceName\":{\"type\":\"string\"},\"client\":{\"type\":\"string\"},"
+                + "\"userName\":{\"type\":\"string\"},\"nowPlaying\":{\"anyOf\":[" + OutputSchemas.ItemSummary + ","
+                + OutputSchemas.ObjectJson("\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"}", "id") + "]},"
+                + "\"isPaused\":{\"type\":\"boolean\"},\"positionMinutes\":{\"type\":\"number\"}",
+            "sessionId",
+            "isPaused",
+            "positionMinutes")),
+        "items");
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ListSessionsTool"/> class.
     /// </summary>
@@ -44,6 +55,9 @@ public sealed class ListSessionsTool : PlaybackToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => SessionsSchema;
+
+    /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(true, false, true);
 
     /// <inheritdoc />
@@ -59,7 +73,7 @@ public sealed class ListSessionsTool : PlaybackToolBase
             isPaused = s.PlayState?.IsPaused ?? false,
             positionMinutes = Math.Round((double)(s.PlayState?.PositionTicks ?? 0) / TimeSpan.TicksPerMinute, 1),
         }).ToList();
-        return Task.FromResult(ToolResult.Json(result));
+        return Task.FromResult(ToolResult.Json(new { items = result }));
     }
 
     private static object? NowPlaying(SessionInfo session)
