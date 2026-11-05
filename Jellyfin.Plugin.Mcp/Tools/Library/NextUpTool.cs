@@ -46,6 +46,9 @@ public sealed class NextUpTool : LibraryToolBase
     public override string Name => "jellyfin_next_up";
 
     /// <inheritdoc />
+    public override string Title => "Next up";
+
+    /// <inheritdoc />
     public override string Description => "List the next episode to watch for each series the user is following, or for one series.";
 
     /// <inheritdoc />

@@ -15,6 +15,11 @@ public interface IMcpTool
     string Name { get; }
 
     /// <summary>
+    /// Gets the short human-readable name shown by clients.
+    /// </summary>
+    string Title { get; }
+
+    /// <summary>
     /// Gets the description shown to the model.
     /// </summary>
     string Description { get; }
@@ -28,6 +33,11 @@ public interface IMcpTool
     /// Gets the JSON schema of the tool arguments.
     /// </summary>
     JsonElement InputSchema { get; }
+
+    /// <summary>
+    /// Gets the JSON schema of the structured result, or <c>null</c> when the tool declares none.
+    /// </summary>
+    JsonElement? OutputSchema { get; }
 
     /// <summary>
     /// Gets the behaviour hints.

@@ -61,6 +61,9 @@ public sealed class ManagePlaylistTool : ManageToolBase
     public override string Name => "jellyfin_manage_playlist";
 
     /// <inheritdoc />
+    public override string Title => "Manage playlist";
+
+    /// <inheritdoc />
     public override string Description => "Manage playlists. Actions: create (name, optional itemIds), add_items (itemIds), remove_items (entryIds), rename (name) and delete, which permanently deletes the playlist. Every action changes data. Only playlists you own, or that are shared with you with edit permission, can be changed; only the owner can delete.";
 
     /// <inheritdoc />

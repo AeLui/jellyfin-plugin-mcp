@@ -39,6 +39,9 @@ public sealed class SendMessageTool : PlaybackToolBase
     public override string Name => "jellyfin_send_message";
 
     /// <inheritdoc />
+    public override string Title => "Send message to device";
+
+    /// <inheritdoc />
     public override string Description => "Show a message on the screen of one of your sessions.";
 
     /// <inheritdoc />

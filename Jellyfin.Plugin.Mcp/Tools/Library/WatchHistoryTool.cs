@@ -42,6 +42,9 @@ public sealed class WatchHistoryTool : LibraryToolBase
     public override string Name => "jellyfin_watch_history";
 
     /// <inheritdoc />
+    public override string Title => "Watch history";
+
+    /// <inheritdoc />
     public override string Description => "List items the user has played, most recently played first, with the last played date.";
 
     /// <inheritdoc />

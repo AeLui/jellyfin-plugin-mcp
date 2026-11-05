@@ -43,6 +43,9 @@ public sealed class RefreshItemTool : AdminToolBase
     public override string Name => "jellyfin_refresh_item";
 
     /// <inheritdoc />
+    public override string Title => "Refresh item metadata";
+
+    /// <inheritdoc />
     public override string Description => "Queue a metadata refresh for an item, optionally replacing its images and/or metadata. The refresh runs in the background and may overwrite existing metadata.";
 
     /// <inheritdoc />

@@ -49,6 +49,9 @@ public sealed class PlayTool : PlaybackToolBase
     public override string Name => "jellyfin_play";
 
     /// <inheritdoc />
+    public override string Title => "Play on device";
+
+    /// <inheritdoc />
     public override string Description => "Play items on one of your sessions (now, next or at the end of the queue).";
 
     /// <inheritdoc />

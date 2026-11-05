@@ -35,6 +35,9 @@ public sealed class ListSessionsTool : PlaybackToolBase
     public override string Name => "jellyfin_list_sessions";
 
     /// <inheritdoc />
+    public override string Title => "List devices";
+
+    /// <inheritdoc />
     public override string Description => "List the active player sessions you can control, with what each is playing.";
 
     /// <inheritdoc />

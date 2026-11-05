@@ -50,6 +50,9 @@ public sealed class GetPersonTool : LibraryToolBase
     public override string Name => "jellyfin_get_person";
 
     /// <inheritdoc />
+    public override string Title => "Get person";
+
+    /// <inheritdoc />
     public override string Description => "Get a person (actor, director, ...) by id or name, with the items of theirs that the user can see.";
 
     /// <inheritdoc />

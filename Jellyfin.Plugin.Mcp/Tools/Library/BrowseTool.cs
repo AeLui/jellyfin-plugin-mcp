@@ -71,6 +71,9 @@ public sealed class BrowseTool : LibraryToolBase
     public override string Name => "jellyfin_browse";
 
     /// <inheritdoc />
+    public override string Title => "Browse folder";
+
+    /// <inheritdoc />
     public override string Description => "List the direct children of a library or folder with sorting and played/favorite filters.";
 
     /// <inheritdoc />

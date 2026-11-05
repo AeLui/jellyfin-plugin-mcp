@@ -48,6 +48,9 @@ public sealed class ListPlaylistsTool : ManageToolBase
     public override string Name => "jellyfin_list_playlists";
 
     /// <inheritdoc />
+    public override string Title => "List playlists";
+
+    /// <inheritdoc />
     public override string Description => "List the playlists the user can access, or, with playlistId, the entries of one playlist.";
 
     /// <inheritdoc />

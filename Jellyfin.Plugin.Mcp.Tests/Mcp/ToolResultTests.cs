@@ -17,6 +17,25 @@ public class ToolResultTests
     }
 
     [Fact]
+    public void Json_KeepsStructuredValueEqualToText()
+    {
+        var result = ToolResult.Json(new { A = 1, B = (string?)null });
+
+        Assert.NotNull(result.Structured);
+        var structured = result.Structured!.Value;
+        Assert.Equal(JsonValueKind.Object, structured.ValueKind);
+        Assert.Equal(1, structured.GetProperty("a").GetInt32());
+        Assert.False(structured.TryGetProperty("b", out _));
+        Assert.Equal(result.Text, structured.GetRawText());
+    }
+
+    [Fact]
+    public void Error_HasNoStructuredValue()
+    {
+        Assert.Null(ToolResult.Error("x").Structured);
+    }
+
+    [Fact]
     public void Json_UsesCamelCaseAndOmitsNulls()
     {
         var result = ToolResult.Json(new { ItemName = "x", Missing = (string?)null });

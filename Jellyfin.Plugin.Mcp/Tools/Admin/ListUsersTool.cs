@@ -36,6 +36,9 @@ public sealed class ListUsersTool : AdminToolBase
     public override string Name => "jellyfin_list_users";
 
     /// <inheritdoc />
+    public override string Title => "List users";
+
+    /// <inheritdoc />
     public override string Description => "List the server's users: id, name, administrator and disabled flags, and last activity and login dates. Read-only.";
 
     /// <inheritdoc />

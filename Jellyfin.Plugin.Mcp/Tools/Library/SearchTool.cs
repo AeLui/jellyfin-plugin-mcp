@@ -68,6 +68,9 @@ public sealed class SearchTool : LibraryToolBase
     public override string Name => "jellyfin_search";
 
     /// <inheritdoc />
+    public override string Title => "Search library";
+
+    /// <inheritdoc />
     public override string Description => "Search the library by text, optionally filtered by type, genre, production year range or library.";
 
     /// <inheritdoc />

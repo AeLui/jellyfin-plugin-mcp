@@ -18,10 +18,11 @@ public sealed class ToolResult
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    private ToolResult(string text, bool isError)
+    private ToolResult(string text, bool isError, JsonElement? structured)
     {
         Text = text;
         IsError = isError;
+        Structured = structured;
     }
 
     /// <summary>
@@ -35,6 +36,11 @@ public sealed class ToolResult
     public string Text { get; }
 
     /// <summary>
+    /// Gets the result as JSON for <c>structuredContent</c>; same JSON as <see cref="Text"/>, or <c>null</c> for errors.
+    /// </summary>
+    public JsonElement? Structured { get; }
+
+    /// <summary>
     /// Creates a successful result holding compact camelCase JSON.
     /// </summary>
     /// <param name="value">The value to serialize.</param>
@@ -42,7 +48,9 @@ public sealed class ToolResult
     public static ToolResult Json(object value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return new ToolResult(JsonSerializer.Serialize(value, value.GetType(), SerializerOptions), false);
+        var text = JsonSerializer.Serialize(value, value.GetType(), SerializerOptions);
+        using var document = JsonDocument.Parse(text);
+        return new ToolResult(text, false, document.RootElement.Clone());
     }
 
     /// <summary>
@@ -53,6 +61,6 @@ public sealed class ToolResult
     public static ToolResult Error(string message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        return new ToolResult(message, true);
+        return new ToolResult(message, true, null);
     }
 }

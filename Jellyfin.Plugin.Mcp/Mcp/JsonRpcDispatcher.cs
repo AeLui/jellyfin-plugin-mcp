@@ -190,11 +190,18 @@ public sealed class JsonRpcDispatcher
         {
             writer.WriteStartObject();
             writer.WriteString("name", tool.Name);
+            writer.WriteString("title", tool.Title);
             writer.WriteString("description", tool.Description);
             writer.WritePropertyName("inputSchema");
             tool.InputSchema.WriteTo(writer);
+            if (tool.OutputSchema is { } outputSchema)
+            {
+                writer.WritePropertyName("outputSchema");
+                outputSchema.WriteTo(writer);
+            }
+
             writer.WritePropertyName("annotations");
-            JsonSerializer.Serialize(writer, tool.Annotations);
+            JsonSerializer.Serialize(writer, tool.Annotations with { Title = tool.Title });
             writer.WriteEndObject();
         }
 
@@ -253,6 +260,12 @@ public sealed class JsonRpcDispatcher
             writer.WriteString("text", result.Text);
             writer.WriteEndObject();
             writer.WriteEndArray();
+            if (result.Structured is { } structured)
+            {
+                writer.WritePropertyName("structuredContent");
+                structured.WriteTo(writer);
+            }
+
             writer.WriteBoolean("isError", result.IsError);
             writer.WriteEndObject();
         });

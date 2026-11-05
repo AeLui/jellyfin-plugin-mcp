@@ -36,6 +36,9 @@ public sealed class ListTasksTool : AdminToolBase
     public override string Name => "jellyfin_list_tasks";
 
     /// <inheritdoc />
+    public override string Title => "List scheduled tasks";
+
+    /// <inheritdoc />
     public override string Description => "List the server's scheduled tasks with their state, progress (percent) and last result.";
 
     /// <inheritdoc />

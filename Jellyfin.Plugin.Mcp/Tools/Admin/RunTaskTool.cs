@@ -39,6 +39,9 @@ public sealed class RunTaskTool : AdminToolBase
     public override string Name => "jellyfin_run_task";
 
     /// <inheritdoc />
+    public override string Title => "Run scheduled task";
+
+    /// <inheritdoc />
     public override string Description => "Start a scheduled task by taskId or key. The task runs in the background; use jellyfin_list_tasks to follow its progress. Some tasks delete cache, log or transcode files or clean up the database, and the plugin update task cannot be run.";
 
     /// <inheritdoc />

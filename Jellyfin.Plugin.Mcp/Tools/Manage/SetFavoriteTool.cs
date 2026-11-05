@@ -38,6 +38,9 @@ public sealed class SetFavoriteTool : ManageToolBase
     public override string Name => "jellyfin_set_favorite";
 
     /// <inheritdoc />
+    public override string Title => "Set favorite";
+
+    /// <inheritdoc />
     public override string Description => "Add an item to, or remove it from, the favorites of the token's user.";
 
     /// <inheritdoc />

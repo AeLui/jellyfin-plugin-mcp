@@ -37,6 +37,9 @@ public sealed class GetItemTool : LibraryToolBase
     public override string Name => "jellyfin_get_item";
 
     /// <inheritdoc />
+    public override string Title => "Get item details";
+
+    /// <inheritdoc />
     public override string Description => "Get the details of one item (overview, genres, studios, tags, people) by id.";
 
     /// <inheritdoc />

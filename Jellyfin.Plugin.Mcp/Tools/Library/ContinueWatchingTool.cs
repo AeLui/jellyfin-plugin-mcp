@@ -42,6 +42,9 @@ public sealed class ContinueWatchingTool : LibraryToolBase
     public override string Name => "jellyfin_continue_watching";
 
     /// <inheritdoc />
+    public override string Title => "Continue watching";
+
+    /// <inheritdoc />
     public override string Description => "List movies, episodes and videos the user has started but not finished, most recently played first.";
 
     /// <inheritdoc />

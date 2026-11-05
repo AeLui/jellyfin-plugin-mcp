@@ -184,6 +184,51 @@ public class JsonRpcDispatcherTests
     }
 
     [Fact]
+    public async Task ToolsCall_ReturnsStructuredContentAndText()
+    {
+        var dispatcher = WithTool(new FakeTool("jellyfin_t", McpScopes.Library));
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t"}}""");
+
+        var payload = Parse(result).GetProperty("result");
+        Assert.True(payload.GetProperty("structuredContent").GetProperty("ok").GetBoolean());
+        Assert.Equal("""{"ok":true}""", payload.GetProperty("content")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task ToolsCall_Error_OmitsStructuredContent()
+    {
+        var dispatcher = WithTool(new FakeTool("jellyfin_t", McpScopes.Library, (_, _) => throw new ToolException("bad")));
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t"}}""");
+
+        var payload = Parse(result).GetProperty("result");
+        Assert.True(payload.GetProperty("isError").GetBoolean());
+        Assert.False(payload.TryGetProperty("structuredContent", out _));
+    }
+
+    [Fact]
+    public async Task ToolsList_IncludesTitleOutputSchemaAndAnnotationTitle()
+    {
+        var outputSchema = JsonDocument.Parse("""{"type":"object","properties":{"ok":{"type":"boolean"}}}""").RootElement.Clone();
+        var dispatcher = CreateDispatcher(new IMcpTool[]
+        {
+            new FakeTool("jellyfin_a", McpScopes.Library, title: "Fake title", outputSchema: outputSchema),
+            new FakeTool("jellyfin_b", McpScopes.Library),
+        });
+
+        var result = await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""");
+
+        var tools = Parse(result).GetProperty("result").GetProperty("tools");
+        var first = tools[0];
+        Assert.Equal("Fake title", first.GetProperty("title").GetString());
+        Assert.Equal("Fake title", first.GetProperty("annotations").GetProperty("title").GetString());
+        Assert.Equal("object", first.GetProperty("outputSchema").GetProperty("type").GetString());
+        Assert.Equal("Fake jellyfin_b", tools[1].GetProperty("title").GetString());
+        Assert.False(tools[1].TryGetProperty("outputSchema", out _));
+    }
+
+    [Fact]
     public async Task ToolsCall_MissingArguments_PassesEmptyArguments()
     {
         var dispatcher = WithTool(new FakeTool("jellyfin_t", McpScopes.Library, (args, _) =>

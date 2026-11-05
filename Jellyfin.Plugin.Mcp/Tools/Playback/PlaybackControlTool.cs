@@ -44,6 +44,9 @@ public sealed class PlaybackControlTool : PlaybackToolBase
     public override string Name => "jellyfin_playback_control";
 
     /// <inheritdoc />
+    public override string Title => "Control playback";
+
+    /// <inheritdoc />
     public override string Description => "Pause, unpause, stop, seek, or skip to the next or previous item on one of your sessions.";
 
     /// <inheritdoc />

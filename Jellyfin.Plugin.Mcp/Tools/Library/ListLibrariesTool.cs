@@ -38,6 +38,9 @@ public sealed class ListLibrariesTool : LibraryToolBase
     public override string Name => "jellyfin_list_libraries";
 
     /// <inheritdoc />
+    public override string Title => "List libraries";
+
+    /// <inheritdoc />
     public override string Description => "List the media libraries the user can access, with their ids and collection types.";
 
     /// <inheritdoc />

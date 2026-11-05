@@ -11,4 +11,12 @@ namespace Jellyfin.Plugin.Mcp.Mcp;
 public sealed record ToolAnnotations(
     [property: JsonPropertyName("readOnlyHint")] bool ReadOnly,
     [property: JsonPropertyName("destructiveHint")] bool Destructive,
-    [property: JsonPropertyName("idempotentHint")] bool Idempotent);
+    [property: JsonPropertyName("idempotentHint")] bool Idempotent)
+{
+    /// <summary>
+    /// Gets the display title repeated inside the annotations; filled from <see cref="IMcpTool.Title"/> when listing.
+    /// </summary>
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Title { get; init; }
+}

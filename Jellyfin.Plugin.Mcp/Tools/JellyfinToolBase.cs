@@ -29,6 +29,9 @@ public abstract class JellyfinToolBase : IMcpTool
     public abstract string Name { get; }
 
     /// <inheritdoc />
+    public abstract string Title { get; }
+
+    /// <inheritdoc />
     public abstract string Description { get; }
 
     /// <inheritdoc />
@@ -36,6 +39,9 @@ public abstract class JellyfinToolBase : IMcpTool
 
     /// <inheritdoc />
     public abstract JsonElement InputSchema { get; }
+
+    /// <inheritdoc />
+    public virtual JsonElement? OutputSchema => null;
 
     /// <inheritdoc />
     public abstract ToolAnnotations Annotations { get; }

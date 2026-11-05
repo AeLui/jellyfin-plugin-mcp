@@ -38,6 +38,9 @@ public sealed class ScanLibrariesTool : AdminToolBase
     public override string Name => "jellyfin_scan_libraries";
 
     /// <inheritdoc />
+    public override string Title => "Scan libraries";
+
+    /// <inheritdoc />
     public override string Description => "Start a scan of all media libraries for new, changed and removed files. The scan runs in the background.";
 
     /// <inheritdoc />

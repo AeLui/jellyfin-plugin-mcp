@@ -57,6 +57,9 @@ public sealed class RecentlyAddedTool : LibraryToolBase
     public override string Name => "jellyfin_recently_added";
 
     /// <inheritdoc />
+    public override string Title => "Recently added";
+
+    /// <inheritdoc />
     public override string Description => "List the most recently added items (newest first), optionally restricted to one library or to some item types.";
 
     /// <inheritdoc />
