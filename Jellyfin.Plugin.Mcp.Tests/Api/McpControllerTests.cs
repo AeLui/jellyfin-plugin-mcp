@@ -233,4 +233,36 @@ public class McpControllerTests
             Assert.Equal("object", tool.OutputSchema!.Value.GetProperty("type").GetString());
         }
     }
+
+    private const string StatelessMeta = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{}}";
+
+    [Fact]
+    public async Task Post_StatelessToolsList_EndToEnd()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var request = host.Post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{" + StatelessMeta + "}}");
+        request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
+        request.Headers.Add("Mcp-Method", "tools/list");
+
+        var response = await host.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("complete", doc.RootElement.GetProperty("result").GetProperty("resultType").GetString());
+    }
+
+    [Fact]
+    public async Task Post_StatelessMismatch_Returns400()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var request = host.Post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{" + StatelessMeta + "}}");
+        request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
+        request.Headers.Add("Mcp-Method", "tools/call");
+
+        var response = await host.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(-32020, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
 }

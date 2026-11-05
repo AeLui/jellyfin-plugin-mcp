@@ -82,7 +82,11 @@ public sealed class McpController : ControllerBase
             return StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
-        var result = await _dispatcher.DispatchAsync(body, auth.Principal!, ct).ConfigureAwait(false);
+        var headers = new McpRequestHeaders(
+            Request.Headers["MCP-Protocol-Version"].FirstOrDefault(),
+            Request.Headers["Mcp-Method"].FirstOrDefault(),
+            Request.Headers["Mcp-Name"].FirstOrDefault());
+        var result = await _dispatcher.DispatchAsync(body, auth.Principal!, headers, ct).ConfigureAwait(false);
 
         // Responses are written with an explicit Content-Length rather than chunked: behind some reverse proxies
         // the chunked responses of this controller reached clients with a chunked header but an unchunked body.

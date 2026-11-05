@@ -11,9 +11,13 @@ namespace Jellyfin.Plugin.Mcp.Mcp;
 /// <summary>
 /// Parses JSON-RPC 2.0 messages and dispatches them to MCP method handlers.
 /// </summary>
-public sealed class JsonRpcDispatcher
+public sealed partial class JsonRpcDispatcher
 {
-    private const string Instructions = "These tools act on Jellyfin as the user that owns the access token, limited to that user's permissions and the token's scopes.";
+    private const string Instructions = "These tools act on Jellyfin as the user that owns the access token, limited to that user's permissions and the token's scopes. "
+        + "Item ids come from other results: find items with jellyfin_search, jellyfin_browse or jellyfin_list_libraries before passing an id. "
+        + "Before jellyfin_play or jellyfin_playback_control, call jellyfin_list_sessions to get the sessionId of the target device. "
+        + "List results are paged: use startIndex with totalCount to fetch more. "
+        + "Some tools may be missing when the token lacks their scope.";
 
     private readonly ToolRegistry _registry;
     private readonly McpServerInfo _info;
@@ -48,10 +52,35 @@ public sealed class JsonRpcDispatcher
     /// <param name="principal">The authenticated caller.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The status code and optional response body.</returns>
-    public async Task<DispatchResult> DispatchAsync(ReadOnlyMemory<byte> body, McpPrincipal principal, CancellationToken ct)
+    public Task<DispatchResult> DispatchAsync(ReadOnlyMemory<byte> body, McpPrincipal principal, CancellationToken ct)
+        => DispatchAsync(body, principal, McpRequestHeaders.None, ct);
+
+    /// <summary>
+    /// Dispatches one HTTP body, choosing the protocol era from the <c>MCP-Protocol-Version</c> header.
+    /// </summary>
+    /// <param name="body">The raw request body.</param>
+    /// <param name="principal">The authenticated caller.</param>
+    /// <param name="headers">The MCP request headers.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The status code and optional response body.</returns>
+    public async Task<DispatchResult> DispatchAsync(ReadOnlyMemory<byte> body, McpPrincipal principal, McpRequestHeaders headers, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(headers);
         ct.ThrowIfCancellationRequested();
+
+        if (headers.ProtocolVersion is { } version)
+        {
+            if (ProtocolVersions.IsStateless(version))
+            {
+                return await DispatchStatelessAsync(body, principal, headers, ct).ConfigureAwait(false);
+            }
+
+            if (!ProtocolVersions.IsHandshake(version))
+            {
+                return UnsupportedVersion(body, version);
+            }
+        }
 
         JsonDocument document;
         try
@@ -108,36 +137,20 @@ public sealed class JsonRpcDispatcher
     /// </summary>
     private async Task<byte[]?> HandleMessageAsync(JsonElement message, McpPrincipal principal, CancellationToken ct)
     {
-        if (message.ValueKind != JsonValueKind.Object)
+        var envelope = ReadEnvelope(message);
+        if (envelope.Error is not null)
         {
-            return JsonRpcMessages.Error(default, JsonRpcErrorCodes.InvalidRequest, "Invalid request");
+            return envelope.Error;
         }
 
-        var hasId = message.TryGetProperty("id", out var id);
-        var validId = hasId && id.ValueKind is JsonValueKind.String or JsonValueKind.Number;
-        var responseId = validId ? id : default;
-
-        if (hasId && !validId && id.ValueKind != JsonValueKind.Null)
-        {
-            return JsonRpcMessages.Error(default, JsonRpcErrorCodes.InvalidRequest, "Invalid request id");
-        }
-
-        if (!message.TryGetProperty("jsonrpc", out var version)
-            || version.ValueKind != JsonValueKind.String
-            || version.GetString() != "2.0"
-            || !message.TryGetProperty("method", out var methodElement)
-            || methodElement.ValueKind != JsonValueKind.String)
-        {
-            return JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.InvalidRequest, "Invalid request");
-        }
-
-        if (!hasId)
+        if (!envelope.HasId)
         {
             // Notifications never get a response.
             return null;
         }
 
-        var method = methodElement.GetString()!;
+        var responseId = envelope.Id;
+        var method = envelope.Method!;
         message.TryGetProperty("params", out var parameters);
         try
         {
@@ -149,8 +162,8 @@ public sealed class JsonRpcDispatcher
                     writer.WriteStartObject();
                     writer.WriteEndObject();
                 }),
-                "tools/list" => JsonRpcMessages.Success(responseId, writer => WriteToolsList(writer, principal)),
-                "tools/call" => await HandleToolsCallAsync(responseId, parameters, principal, ct).ConfigureAwait(false),
+                "tools/list" => JsonRpcMessages.Success(responseId, writer => WriteToolsList(writer, principal, false)),
+                "tools/call" => await HandleToolsCallAsync(responseId, parameters, principal, false, ct).ConfigureAwait(false),
                 _ => JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.MethodNotFound, "Method not found: " + method),
             };
         }
@@ -182,9 +195,14 @@ public sealed class JsonRpcDispatcher
         }
     }
 
-    private void WriteToolsList(Utf8JsonWriter writer, McpPrincipal principal)
+    private void WriteToolsList(Utf8JsonWriter writer, McpPrincipal principal, bool stateless)
     {
         writer.WriteStartObject();
+        if (stateless)
+        {
+            writer.WriteString("resultType", "complete");
+        }
+
         writer.WriteStartArray("tools");
         foreach (var tool in _registry.ListFor(principal))
         {
@@ -206,10 +224,16 @@ public sealed class JsonRpcDispatcher
         }
 
         writer.WriteEndArray();
+        if (stateless)
+        {
+            WriteCacheHints(writer);
+            WriteServerInfoMeta(writer);
+        }
+
         writer.WriteEndObject();
     }
 
-    private async Task<byte[]> HandleToolsCallAsync(JsonElement id, JsonElement parameters, McpPrincipal principal, CancellationToken ct)
+    private async Task<byte[]> HandleToolsCallAsync(JsonElement id, JsonElement parameters, McpPrincipal principal, bool stateless, CancellationToken ct)
     {
         if (parameters.ValueKind != JsonValueKind.Object
             || !parameters.TryGetProperty("name", out var nameElement)
@@ -254,6 +278,11 @@ public sealed class JsonRpcDispatcher
         return JsonRpcMessages.Success(id, writer =>
         {
             writer.WriteStartObject();
+            if (stateless)
+            {
+                writer.WriteString("resultType", "complete");
+            }
+
             writer.WriteStartArray("content");
             writer.WriteStartObject();
             writer.WriteString("type", "text");
@@ -267,6 +296,11 @@ public sealed class JsonRpcDispatcher
             }
 
             writer.WriteBoolean("isError", result.IsError);
+            if (stateless)
+            {
+                WriteServerInfoMeta(writer);
+            }
+
             writer.WriteEndObject();
         });
     }

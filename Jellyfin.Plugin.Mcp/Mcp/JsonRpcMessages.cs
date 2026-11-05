@@ -30,14 +30,21 @@ internal static class JsonRpcMessages
     /// <param name="id">The request id token, or default for <c>null</c>.</param>
     /// <param name="code">The JSON-RPC error code.</param>
     /// <param name="message">The error message.</param>
+    /// <param name="writeData">Writes the value of <c>error.data</c>, if any.</param>
     /// <returns>The UTF-8 JSON response.</returns>
-    public static byte[] Error(JsonElement id, int code, string message)
+    public static byte[] Error(JsonElement id, int code, string message, Action<Utf8JsonWriter>? writeData = null)
     {
         return Build(id, writer =>
         {
             writer.WriteStartObject("error");
             writer.WriteNumber("code", code);
             writer.WriteString("message", message);
+            if (writeData is not null)
+            {
+                writer.WritePropertyName("data");
+                writeData(writer);
+            }
+
             writer.WriteEndObject();
         });
     }
