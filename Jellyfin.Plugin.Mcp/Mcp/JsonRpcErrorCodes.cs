@@ -19,4 +19,10 @@ public static class JsonRpcErrorCodes
 
     /// <summary>Internal JSON-RPC error.</summary>
     public const int InternalError = -32603;
+
+    /// <summary>An MCP request header is missing or does not match the request body (MCP 2026-07-28).</summary>
+    public const int HeaderMismatch = -32020;
+
+    /// <summary>The requested MCP protocol version is not supported (MCP 2026-07-28).</summary>
+    public const int UnsupportedProtocolVersion = -32022;
 }
