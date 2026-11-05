@@ -99,10 +99,14 @@ public sealed class GetPersonTool : LibraryToolBase
         var result = new Dictionary<string, object>
         {
             ["id"] = person.Id.ToString("N", CultureInfo.InvariantCulture),
-            ["name"] = person.Name,
             ["totalCount"] = items.TotalRecordCount,
             ["items"] = items.Items.Select(i => ItemMapper.Summary(i, UserDataManager.GetUserData(user, i))).ToList(),
         };
+        if (person.Name is not null)
+        {
+            result["name"] = person.Name;
+        }
+
         if (!string.IsNullOrWhiteSpace(person.Overview))
         {
             result["overview"] = person.Overview;

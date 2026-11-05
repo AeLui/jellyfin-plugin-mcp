@@ -436,4 +436,17 @@ public class PlaybackToolsTests
 
         SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("""{"sessionId":"mine","text":"Dinner"}"""), _principal, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task ListSessions_NowPlayingDtoWithoutName_ConformsToOutputSchema()
+    {
+        var session = AddSession("dto", _user.Id);
+        session.NowPlayingItem = new MediaBrowser.Model.Dto.BaseItemDto { Id = Guid.NewGuid(), Name = null };
+        var tool = List();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        Assert.DoesNotContain("null", result.Text, StringComparison.Ordinal);
+        SchemaAssert.Conforms(tool, result);
+    }
 }

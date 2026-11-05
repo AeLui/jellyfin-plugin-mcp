@@ -85,11 +85,14 @@ public sealed class ListSessionsTool : PlaybackToolBase
 
         if (session.NowPlayingItem is { } dto)
         {
-            return new Dictionary<string, object?>
+            // Null dictionary values are serialized (WhenWritingNull only covers properties), so a missing name is left out.
+            var playing = new Dictionary<string, object> { ["id"] = dto.Id.ToString("N", CultureInfo.InvariantCulture) };
+            if (dto.Name is not null)
             {
-                ["id"] = dto.Id.ToString("N", CultureInfo.InvariantCulture),
-                ["name"] = dto.Name,
-            };
+                playing["name"] = dto.Name;
+            }
+
+            return playing;
         }
 
         return null;

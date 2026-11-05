@@ -6,12 +6,14 @@ using Jellyfin.Plugin.Mcp.Configuration;
 namespace Jellyfin.Plugin.Mcp.Auth;
 
 /// <summary>
-/// Validates the <c>Origin</c> header of MCP requests (DNS rebinding protection required by the MCP transport).
+/// Validates the <c>Origin</c> header of MCP requests, as the MCP transport requires: pages on other sites cannot call
+/// the endpoint from a browser.
 /// </summary>
 /// <remarks>
 /// Requests without an <c>Origin</c> (Claude Code, Claude Desktop, scripts) are allowed. A browser origin is allowed when
 /// its host is the host the request was sent to (scheme and port are ignored, so TLS-terminating proxies work) or when it
-/// is listed in the plugin's allowed origins.
+/// is listed in the plugin's allowed origins. The same-host rule does not stop DNS rebinding, because a rebound page's
+/// origin and host are both the attacker's name; the bearer token, which such a page cannot obtain, is what does.
 /// </remarks>
 public sealed class OriginPolicy
 {

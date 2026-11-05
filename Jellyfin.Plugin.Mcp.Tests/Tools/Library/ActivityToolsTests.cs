@@ -481,4 +481,20 @@ public class ActivityToolsTests
 
         SchemaAssert.Conforms(tool, await Run(tool, $$"""{"personId":"{{person.Id}}"}"""));
     }
+
+    [Fact]
+    public async Task GetPerson_WithoutName_OmitsNameAndConformsToOutputSchema()
+    {
+        var person = new Person { Id = Guid.NewGuid(), Name = null! };
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat" };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+        var tool = Person();
+
+        var result = await Run(tool, $$"""{"personId":"{{person.Id}}"}""");
+
+        Assert.DoesNotContain("null", result.Text, StringComparison.Ordinal);
+        SchemaAssert.Conforms(tool, result);
+    }
 }
