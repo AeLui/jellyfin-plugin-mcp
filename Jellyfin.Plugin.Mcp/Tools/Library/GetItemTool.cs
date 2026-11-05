@@ -15,6 +15,8 @@ public sealed class GetItemTool : LibraryToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"itemId":{"type":"string","description":"Item id (GUID)."}},"required":["itemId"]}""").RootElement.Clone();
 
+    private static readonly JsonElement DetailSchema = OutputSchemas.Parse(OutputSchemas.ItemDetail);
+
     private readonly ItemLookup _lookup;
     private readonly ILibraryManager _libraryManager;
 
@@ -44,6 +46,9 @@ public sealed class GetItemTool : LibraryToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => DetailSchema;
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)

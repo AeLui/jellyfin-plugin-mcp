@@ -28,6 +28,14 @@ public sealed class GetPersonTool : LibraryToolBase
         "startIndex":{"type":"integer","description":"Offset of the first item, default 0."}}}
         """).RootElement.Clone();
 
+    private static readonly JsonElement PersonSchema = OutputSchemas.Object(
+        "\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"overview\":{\"type\":\"string\"},"
+            + "\"birthDate\":{\"type\":\"string\",\"description\":\"Calendar date, yyyy-MM-dd.\"},"
+            + "\"totalCount\":{\"type\":\"integer\"},\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ItemSummary),
+        "id",
+        "totalCount",
+        "items");
+
     private readonly ILibraryManager _libraryManager;
     private readonly ItemLookup _lookup;
 
@@ -57,6 +65,9 @@ public sealed class GetPersonTool : LibraryToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => PersonSchema;
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)

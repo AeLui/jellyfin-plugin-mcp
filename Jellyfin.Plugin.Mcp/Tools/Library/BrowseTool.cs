@@ -80,6 +80,9 @@ public sealed class BrowseTool : LibraryToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => OutputSchemas.ItemPage;
+
+    /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var parentId = args.GetRequiredGuid("parentId");

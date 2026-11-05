@@ -51,6 +51,9 @@ public sealed class ContinueWatchingTool : LibraryToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => OutputSchemas.ItemPage;
+
+    /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var (startIndex, limit) = args.GetPaging(MaxPageSize);

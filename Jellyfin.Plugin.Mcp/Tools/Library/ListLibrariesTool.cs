@@ -19,6 +19,12 @@ public sealed class ListLibrariesTool : LibraryToolBase
 {
     private static readonly JsonElement Schema = JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement.Clone();
 
+    private static readonly JsonElement LibrariesSchema = OutputSchemas.Object(
+        "\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(
+            "\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"collectionType\":{\"type\":\"string\"}",
+            "id")),
+        "items");
+
     private readonly IUserViewManager _userViewManager;
 
     /// <summary>
@@ -47,6 +53,9 @@ public sealed class ListLibrariesTool : LibraryToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => LibrariesSchema;
+
+    /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var user = GetUser(principal);
@@ -57,7 +66,7 @@ public sealed class ListLibrariesTool : LibraryToolBase
             name = v.Name,
             collectionType = CollectionTypeOf(v)?.ToString().ToLowerInvariant(),
         }).ToList();
-        return Task.FromResult(ToolResult.Json(libraries));
+        return Task.FromResult(ToolResult.Json(new { items = libraries }));
     }
 
     private static CollectionType? CollectionTypeOf(Folder folder)

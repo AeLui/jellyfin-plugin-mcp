@@ -429,4 +429,56 @@ public class ActivityToolsTests
             Assert.Equal(new ToolAnnotations(true, false, true), t.Annotations);
         });
     }
+
+    [Fact]
+    public async Task ContinueWatching_ConformsToOutputSchema()
+    {
+        var tool = Continue();
+
+        SchemaAssert.Conforms(tool, await Run(tool, "{}"));
+    }
+
+    [Fact]
+    public async Task NextUp_ConformsToOutputSchema()
+    {
+        var episode = new Episode { Id = Guid.NewGuid(), Name = "Pilot", SeriesName = "Show", ParentIndexNumber = 1, IndexNumber = 1 };
+        _tv.Setup(t => t.GetNextUp(It.IsAny<NextUpQuery>(), It.IsAny<DtoOptions>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { episode }));
+        var tool = NextUp();
+
+        SchemaAssert.Conforms(tool, await Run(tool, "{}"));
+    }
+
+    [Fact]
+    public async Task WatchHistory_ConformsToOutputSchema()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat" };
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+        _userData.Setup(d => d.GetUserData(_user, movie)).Returns(new UserItemData { Key = "k", Played = true, LastPlayedDate = DateTime.UtcNow });
+        var tool = History();
+
+        SchemaAssert.Conforms(tool, await Run(tool, "{}"));
+    }
+
+    [Fact]
+    public async Task RecentlyAdded_ConformsToOutputSchema()
+    {
+        var tool = Recent();
+
+        SchemaAssert.Conforms(tool, await Run(tool, "{}"));
+    }
+
+    [Fact]
+    public async Task GetPerson_ConformsToOutputSchema()
+    {
+        var person = new Person { Id = Guid.NewGuid(), Name = "Al Pacino", Overview = "Actor", PremiereDate = new DateTime(1940, 4, 25, 0, 0, 0, DateTimeKind.Utc) };
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat" };
+        _library.Setup(l => l.GetItemById(person.Id)).Returns(person);
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+        var tool = Person();
+
+        SchemaAssert.Conforms(tool, await Run(tool, $$"""{"personId":"{{person.Id}}"}"""));
+    }
 }

@@ -424,7 +424,7 @@ public class CatalogueToolsTests
 
         Assert.Same(_user, captured!.User);
         using var doc = JsonDocument.Parse(result.Text);
-        var library = Assert.Single(doc.RootElement.EnumerateArray());
+        var library = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal(movies.Id.ToString("N"), library.GetProperty("id").GetString());
         Assert.Equal("Movies", library.GetProperty("name").GetString());
         _library.VerifyNoOtherCalls();
@@ -449,5 +449,59 @@ public class CatalogueToolsTests
             Assert.Equal(McpScopes.Library, t.RequiredScope);
             Assert.Equal(new ToolAnnotations(true, false, true), t.Annotations);
         });
+    }
+
+    [Fact]
+    public async Task Search_ConformsToOutputSchema()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "The Matrix", ProductionYear = 1999 };
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+        var tool = Search();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("""{"query":"matrix"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetItem_ConformsToOutputSchema()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat", Overview = "Cops and robbers", Genres = ["Crime"] };
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
+        var pacino = new Person { Id = Guid.NewGuid(), Name = "Al Pacino" };
+        _library.Setup(l => l.GetPeople(movie)).Returns(new List<PersonInfo>
+        {
+            new() { Name = "Al Pacino", Role = "Hanna", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+            new() { Name = "Unknown", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+        });
+        _library.Setup(l => l.GetPerson("Al Pacino")).Returns(pacino);
+        _library.Setup(l => l.GetPerson("Unknown")).Returns((Person?)null);
+        var tool = GetItem();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Browse_ConformsToOutputSchema()
+    {
+        var parent = new Fakes.RecordingCollectionFolder { Id = Guid.NewGuid(), CollectionType = CollectionType.movies };
+        _library.Setup(l => l.GetItemById<BaseItem>(parent.Id, _user)).Returns(parent);
+        var tool = Browse();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"parentId":"{{parent.Id}}"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ListLibraries_WrapsInItemsAndConformsToOutputSchema()
+    {
+        var movies = new CollectionFolder { Id = Guid.NewGuid(), Name = "Movies", CollectionType = CollectionType.movies };
+        _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>())).Returns(new Folder[] { movies });
+        var tool = new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object);
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var library = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("Movies", library.GetProperty("name").GetString());
+        SchemaAssert.Conforms(tool, result);
     }
 }

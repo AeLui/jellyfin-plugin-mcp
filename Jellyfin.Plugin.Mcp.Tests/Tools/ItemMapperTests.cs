@@ -101,4 +101,67 @@ public class ItemMapperTests
         Assert.False(json.TryGetProperty("people", out _));
         Assert.False(json.TryGetProperty("genres", out _));
     }
+
+    private static Episode FullEpisode() => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = "Pilot",
+        SeriesName = "Lost",
+        ParentIndexNumber = 1,
+        IndexNumber = 2,
+        ProductionYear = 2004,
+        RunTimeTicks = TimeSpan.FromMinutes(42).Ticks,
+        CommunityRating = 8.5f,
+        OfficialRating = "TV-14",
+        Overview = "Plane crash",
+        Genres = ["Drama"],
+        Studios = ["ABC"],
+        Tags = ["island"],
+        PremiereDate = new DateTime(2004, 9, 22, 0, 0, 0, DateTimeKind.Utc),
+        CriticRating = 91,
+    };
+
+    private static UserItemData FullData() => new()
+    {
+        Key = "k",
+        Played = true,
+        IsFavorite = true,
+        PlaybackPositionTicks = TimeSpan.FromMinutes(12.5).Ticks,
+        LastPlayedDate = new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc),
+    };
+
+    [Fact]
+    public void ItemMapper_Summary_FullyPopulated_ConformsToSchema()
+    {
+        SchemaAssert.Valid(OutputSchemas.ItemSummary, ItemMapper.Summary(FullEpisode(), FullData()));
+        SchemaAssert.Valid(OutputSchemas.ItemSummary, ItemMapper.Summary(new Movie { Id = Guid.NewGuid(), Name = "Bare" }, null));
+    }
+
+    [Fact]
+    public void ItemMapper_Detail_FullyPopulated_ConformsToSchema()
+    {
+        var people = new List<PersonInfo>
+        {
+            new() { Name = "Matthew Fox", Role = "Jack", Type = PersonKind.Actor, Id = Guid.NewGuid() },
+            new() { Name = "J. J. Abrams", Type = PersonKind.Director, Id = Guid.NewGuid() },
+        };
+
+        var detail = ItemMapper.Detail(FullEpisode(), FullData(), people, new Dictionary<string, Guid> { ["Matthew Fox"] = Guid.NewGuid() });
+
+        SchemaAssert.Valid(OutputSchemas.ItemDetail, detail);
+    }
+
+    [Fact]
+    public void ItemMapper_Entry_ConformsToSchema()
+    {
+        SchemaAssert.Valid(OutputSchemas.PlaylistEntry, ItemMapper.Entry("e1", FullEpisode(), FullData()));
+        SchemaAssert.Valid(OutputSchemas.PlaylistEntry, ItemMapper.Entry(null, FullEpisode(), null));
+    }
+
+    [Fact]
+    public void ItemMapper_Summary_UndeclaredField_FailsSchema()
+    {
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() =>
+            SchemaAssert.Valid(OutputSchemas.ItemSummary, new { id = "x", name = "n", type = "movie", unexpected = 1 }));
+    }
 }

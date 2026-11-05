@@ -66,6 +66,9 @@ public sealed class RecentlyAddedTool : LibraryToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => OutputSchemas.ItemPage;
+
+    /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var libraryId = args.GetGuid("libraryId");
