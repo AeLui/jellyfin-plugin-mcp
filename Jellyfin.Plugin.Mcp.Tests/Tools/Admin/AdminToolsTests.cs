@@ -8,6 +8,7 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tests.Auth;
+using Jellyfin.Plugin.Mcp.Tests.Tools;
 using Jellyfin.Plugin.Mcp.Tools;
 using Jellyfin.Plugin.Mcp.Tools.Admin;
 using MediaBrowser.Controller.Entities;
@@ -181,7 +182,7 @@ public class AdminToolsTests
         var result = await new ListTasksTool(_users.Object, _settings.Object, _tasks.Object)
             .ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
 
-        var items = Parse(result).EnumerateArray().ToList();
+        var items = Parse(result).GetProperty("items").EnumerateArray().ToList();
         Assert.Equal(2, items.Count);
         var first = items[0];
         Assert.Equal("id-1", first.GetProperty("id").GetString());
@@ -308,7 +309,7 @@ public class AdminToolsTests
         var result = await new ListUsersTool(_users.Object, _settings.Object)
             .ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
 
-        var items = Parse(result).EnumerateArray().ToList();
+        var items = Parse(result).GetProperty("items").EnumerateArray().ToList();
         Assert.Equal(2, items.Count);
         var expected = new[] { "id", "isAdministrator", "isDisabled", "lastActivityDate", "lastLoginDate", "name" };
         var adminItem = items.Single(i => i.GetProperty("isAdministrator").GetBoolean());
@@ -319,5 +320,56 @@ public class AdminToolsTests
         var disabledItem = items.Single(i => i.GetProperty("isDisabled").GetBoolean());
         Assert.Equal(["id", "isAdministrator", "isDisabled", "name"], disabledItem.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
         Assert.DoesNotContain("secret-hash", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListTasks_ConformsToOutputSchema()
+    {
+        var worker = Worker("id-1", "KeyOne", TaskState.Running);
+        worker.SetupGet(w => w.CurrentProgress).Returns(42.5);
+        worker.SetupGet(w => w.LastExecutionResult).Returns(new TaskResult { Status = TaskCompletionStatus.Completed, EndTimeUtc = DateTime.UtcNow });
+        SetTasks(worker, Worker("id-2", "KeyTwo"));
+        var tool = new ListTasksTool(_users.Object, _settings.Object, _tasks.Object);
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ListUsers_ConformsToOutputSchema()
+    {
+        var admin = TestUsers.Create(admin: true);
+        admin.LastActivityDate = DateTime.UtcNow;
+        admin.LastLoginDate = DateTime.UtcNow;
+        _users.Setup(u => u.GetUsers()).Returns([TestUsers.Create(disabled: true), admin]);
+        var tool = new ListUsersTool(_users.Object, _settings.Object);
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RunTask_ConformsToOutputSchema()
+    {
+        SetTasks(Worker("id-1", "MyKey"));
+        var tool = new RunTaskTool(_users.Object, _settings.Object, _tasks.Object);
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("""{"key":"MyKey"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ScanLibraries_ConformsToOutputSchema()
+    {
+        SetTasks(Worker("id-scan", "RefreshLibrary"));
+        var tool = new ScanLibrariesTool(_users.Object, _settings.Object, _tasks.Object);
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RefreshItem_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        var tool = Refresh();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}"}"""), _principal, CancellationToken.None));
     }
 }

@@ -201,4 +201,36 @@ public class McpControllerTests
         Assert.Equal(22, tools.Count);
         Assert.Equal(22, tools.Distinct().Count());
     }
+
+    [Fact]
+    public void Registrator_EveryToolHasTitleAndObjectSchemas()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(new Mock<IUserManager>().Object);
+        services.AddSingleton(new Mock<ILibraryManager>().Object);
+        services.AddSingleton(new Mock<IUserDataManager>().Object);
+        services.AddSingleton(new Mock<IUserViewManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Playlists.IPlaylistManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.Providers.IProviderManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Model.IO.IFileSystem>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Model.Tasks.ITaskManager>().Object);
+        new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        var tools = scope.ServiceProvider.GetServices<IMcpTool>().ToList();
+
+        Assert.Equal(22, tools.Count);
+        Assert.Equal(22, tools.Select(t => t.Title).Distinct(StringComparer.Ordinal).Count());
+        foreach (var tool in tools)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(tool.Title), tool.Name);
+            Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString());
+            Assert.True(tool.OutputSchema.HasValue, tool.Name + " has no output schema");
+            Assert.Equal("object", tool.OutputSchema!.Value.GetProperty("type").GetString());
+        }
+    }
 }

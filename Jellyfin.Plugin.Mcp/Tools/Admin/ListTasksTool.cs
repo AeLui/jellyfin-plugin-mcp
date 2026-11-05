@@ -18,6 +18,16 @@ public sealed class ListTasksTool : AdminToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{}}""").RootElement.Clone();
 
+    private static readonly JsonElement TasksSchema = OutputSchemas.Object(
+        "\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(
+            "\"id\":{\"type\":\"string\"},\"key\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},"
+                + "\"category\":{\"type\":\"string\"},\"state\":{\"type\":\"string\"},\"progress\":{\"type\":\"number\"},"
+                + "\"lastResult\":" + OutputSchemas.ObjectJson(
+                    "\"status\":{\"type\":\"string\"},\"endTime\":{\"type\":\"string\",\"description\":\"ISO 8601 UTC timestamp.\"}",
+                    "status"),
+            "state")),
+        "items");
+
     private readonly ITaskManager _taskManager;
 
     /// <summary>
@@ -45,13 +55,16 @@ public sealed class ListTasksTool : AdminToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => TasksSchema;
+
+    /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(true, false, true);
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var tasks = _taskManager.ScheduledTasks.Select(Map).ToList();
-        return Task.FromResult(ToolResult.Json(tasks));
+        return Task.FromResult(ToolResult.Json(new { items = tasks }));
     }
 
     private static Dictionary<string, object> Map(IScheduledTaskWorker worker)

@@ -22,6 +22,16 @@ public sealed class ListUsersTool : AdminToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{}}""").RootElement.Clone();
 
+    private static readonly JsonElement UsersSchema = OutputSchemas.Object(
+        "\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(
+            "\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"isAdministrator\":{\"type\":\"boolean\"},"
+                + "\"isDisabled\":{\"type\":\"boolean\"},\"lastActivityDate\":{\"type\":\"string\"},\"lastLoginDate\":{\"type\":\"string\"}",
+            "id",
+            "name",
+            "isAdministrator",
+            "isDisabled")),
+        "items");
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ListUsersTool"/> class.
     /// </summary>
@@ -45,6 +55,9 @@ public sealed class ListUsersTool : AdminToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
+    public override JsonElement? OutputSchema => UsersSchema;
+
+    /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(true, false, true);
 
     /// <inheritdoc />
@@ -55,7 +68,7 @@ public sealed class ListUsersTool : AdminToolBase
             .OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
             .Select(Map)
             .ToList();
-        return Task.FromResult(ToolResult.Json(users));
+        return Task.FromResult(ToolResult.Json(new { items = users }));
     }
 
     private static Dictionary<string, object> Map(User user)

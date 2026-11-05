@@ -21,6 +21,8 @@ public sealed class RunTaskTool : AdminToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"taskId":{"type":"string","description":"Task id, from jellyfin_list_tasks."},"key":{"type":"string","description":"Task key, from jellyfin_list_tasks. Used when taskId is not given."}}}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object("\"started\":{\"type\":\"boolean\"}", "started");
+
     private readonly ITaskManager _taskManager;
 
     /// <summary>
@@ -46,6 +48,9 @@ public sealed class RunTaskTool : AdminToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, true, false);

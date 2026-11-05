@@ -19,6 +19,8 @@ public sealed class RefreshItemTool : AdminToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"itemId":{"type":"string","description":"Item id (GUID)."},"replaceImages":{"type":"boolean","description":"Replace existing images. Default false."},"replaceMetadata":{"type":"boolean","description":"Replace existing metadata. Default false."}},"required":["itemId"]}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object("\"queued\":{\"type\":\"boolean\"}", "queued");
+
     private readonly ItemLookup _lookup;
     private readonly IProviderManager _providerManager;
     private readonly IFileSystem _fileSystem;
@@ -50,6 +52,9 @@ public sealed class RefreshItemTool : AdminToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, true, false);

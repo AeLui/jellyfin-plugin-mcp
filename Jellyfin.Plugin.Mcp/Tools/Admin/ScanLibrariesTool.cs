@@ -20,6 +20,8 @@ public sealed class ScanLibrariesTool : AdminToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{}}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Object("\"queued\":{\"type\":\"boolean\"}", "queued");
+
     private readonly ITaskManager _taskManager;
 
     /// <summary>
@@ -45,6 +47,9 @@ public sealed class ScanLibrariesTool : AdminToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, false, true);
