@@ -24,6 +24,7 @@ Open **Dashboard > Plugins > MCP Server**.
 | Enable MCP endpoint | on | When off, `/mcp` answers 503 and no tool runs. |
 | Max page size | 100 | Upper limit for the `limit` of list tools (the dashboard accepts 1 to 1000; the server itself only floors it at 1). A larger `limit` is clamped to this value, not rejected. |
 | Log tool calls | off | One log line per tool call: tool name, user, duration, outcome. Arguments and tokens are never logged. |
+| Allowed origins | empty | Browser origins (one per line, for example `https://inspector.example.com`) allowed to call `/mcp` besides the server's own host. Requests without an `Origin` header, such as Claude Code, Claude Desktop and scripts, never need an entry. |
 
 The page also shows the endpoint URL (`<your server>/mcp`).
 
@@ -73,7 +74,7 @@ Restart Claude Desktop afterwards. This `mcp-remote` flow is expected to work bu
 
 ### Other clients
 
-Any MCP client that can send a custom `Authorization` header over Streamable HTTP works. claude.ai web connectors require OAuth 2.1, which is on the [roadmap](roadmap.md).
+Any MCP client that can send a custom `Authorization` header over Streamable HTTP works. claude.ai web connectors require OAuth 2.1, which this plugin does not offer (see the [roadmap](roadmap.md)).
 
 ## Reverse proxy and HTTPS
 

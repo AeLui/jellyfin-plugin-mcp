@@ -17,7 +17,7 @@ Auth/       TokenAuthenticator bearer parsing, hash lookup, expiry, user checks,
  |          TokenStore         tokens in plugin config, one lock
  |          AuthFailureLimiter per-IP failure window
  v
-Mcp/        JsonRpcDispatcher  JSON-RPC 2.0: initialize, ping, tools/list, tools/call, batches
+Mcp/        JsonRpcDispatcher  JSON-RPC 2.0: initialize, ping, server/discover, tools/list, tools/call, batches
  |          ToolRegistry       tools filtered by the principal's scopes
  |          ToolArguments      typed, validated argument access
  v
@@ -31,25 +31,28 @@ Rule: `Mcp/` must not reference any `Jellyfin.*` or `MediaBrowser.*` namespace. 
 ## Request flow
 
 1. Client sends `POST /mcp` with `Authorization: Bearer jmcp_...` and a JSON-RPC body.
-2. `McpController` authenticates. Disabled plugin or not ready: 503. Rate limited: 429. Bad token: 401 with `WWW-Authenticate: Bearer`.
+2. `McpController` checks the `Origin` header (`OriginPolicy`; a foreign browser origin gets 403 before authentication), then authenticates. Disabled plugin or not ready: 503. Rate limited: 429. Bad token: 401 with `WWW-Authenticate: Bearer`.
 3. `TokenAuthenticator` hashes the token, finds it, checks enabled and expiry, loads the Jellyfin user (must exist and not be disabled), intersects the token's scopes with the known scopes, drops `admin` if the user is not an administrator, and records last use. The result is an `McpPrincipal` (user id and scopes), recreated on every request.
-4. `JsonRpcDispatcher` parses the body (a single message or a batch). Notifications get no response (HTTP 202 when nothing is returned). Requests are routed to `initialize`, `ping`, `tools/list` or `tools/call`.
+4. `JsonRpcDispatcher` picks the protocol era from the `MCP-Protocol-Version` header (see Protocol support), then parses the body. Notifications get no response (HTTP 202 when nothing is returned). Handshake-era requests are routed to `initialize`, `ping`, `tools/list` or `tools/call`; stateless requests to `server/discover`, `tools/list` or `tools/call`.
 5. `tools/call` looks the tool up in the registry filtered by the principal's scopes, wraps the arguments in `ToolArguments`, and runs the tool. `ToolException` becomes an `isError` result with its message; any other exception becomes a generic `isError` result and is logged.
-6. The tool result is returned as one text content block of JSON.
+6. The tool result is returned as `structuredContent` and, with the same JSON, as one text content block. Error results carry only the text.
 
 ## Protocol support
 
 - Streamable HTTP transport, JSON responses only (no SSE stream, no server-initiated messages). `GET` and `DELETE` answer 405.
 - Stateless: no sessions, no `Mcp-Session-Id`. Each request is self-contained.
-- Capabilities: `tools` with `listChanged: false`.
-- Revisions negotiated at `initialize`: 2025-11-25, 2025-06-18, 2025-03-26. An unknown requested version gets the latest supported one. The stateless 2026-07-28 revision is not supported yet (see the [roadmap](roadmap.md)).
-- Tools carry `readOnlyHint`, `destructiveHint` and `idempotentHint`.
+- Capabilities: `tools` (no `listChanged`, so no `subscriptions/listen`).
+- Two protocol eras, chosen per request by the `MCP-Protocol-Version` header:
+  - **Handshake** (2025-11-25, 2025-06-18, 2025-03-26, or no header): versions are negotiated at `initialize`; an unknown requested version gets the latest of these. Batches are accepted. Behaviour is unchanged from earlier releases apart from the additive fields below.
+  - **Stateless** (2026-07-28): no `initialize`. Every request must carry `_meta["io.modelcontextprotocol/protocolVersion"]` and `_meta["io.modelcontextprotocol/clientCapabilities"]` (missing: 400, -32602), and `Mcp-Method` (plus `Mcp-Name` for `tools/call`) headers that match the body, base64 `=?base64?...?=` values decoded (mismatch: 400, -32020). `server/discover` returns the supported versions, capabilities and instructions. Results carry `resultType: "complete"` and `_meta["io.modelcontextprotocol/serverInfo"]`; `server/discover` and `tools/list` add `ttlMs: 300000` and `cacheScope: "private"`. Unknown methods (including `initialize` and `ping`): 404, -32601. Batches: 400, -32600. `StatelessRequestValidator` holds the checks; the stateless method table is `JsonRpcDispatcher.Stateless.cs`.
+  - Any other header value: 400, -32022, with `data.supported` listing every version.
+- Tools carry `title`, `outputSchema` and the `readOnlyHint`, `destructiveHint` and `idempotentHint` annotations (plus `annotations.title`).
 
 ## Key decisions
 
 - **Hand-written transport.** The official SDKs would add runtime dependencies to a plugin loaded into Jellyfin's process, with version-conflict risk. The needed protocol subset is small.
 - **Stateless.** Fits Jellyfin's plugin model and horizontal simplicity: nothing to expire, nothing to leak between users, no sticky routing.
-- **Static bearer tokens (v1).** Works with Claude Code (supported); Claude Desktop via `mcp-remote` is expected to work but is not yet verified. OAuth 2.1 for claude.ai connectors is the v2 goal.
+- **Static bearer tokens (v1).** Works with Claude Code (supported); Claude Desktop via `mcp-remote` is expected to work but is not yet verified. OAuth 2.1 for claude.ai connectors was built and discarded; static tokens stay.
 - **Principal per request.** No cached identity, so revocation and demotion are immediate.
 - **User-aware lookups.** Every id goes through `ItemLookup.GetVisible`, which uses the user overload of `GetItemById`. See [security](security.md).
 - **Tokens in plugin config, hashed.** `Plugin.UpdateConfiguration` is overridden so the generic config API cannot change tokens; `TokenStore` writes them through a dedicated method under one lock, so a token created while `LastUsedAt` is being saved is never lost.

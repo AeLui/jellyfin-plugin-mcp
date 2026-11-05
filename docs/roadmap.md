@@ -2,19 +2,9 @@
 
 Nothing here is committed; it is the intended direction.
 
-## v2: OAuth 2.1 and claude.ai connectors
+## Authentication
 
-claude.ai connectors (and other clients that cannot send a static header) need OAuth 2.1. Plan:
-
-- Authorization server endpoints: authorization, token, revocation and server metadata (RFC 8414), plus protected-resource metadata (RFC 9728) for `/mcp`.
-- Dynamic client registration (RFC 7591) so clients can register themselves.
-- Authorization with PKCE, using a Jellyfin login page so users sign in with their Jellyfin account and approve a consent screen.
-- Scopes are the existing ones: `library`, `playback`, `manage`, `admin`. OAuth grants map onto the same principal and tool filtering as static tokens.
-- Static tokens stay supported for Claude Code and scripts.
-
-## Protocol
-
-- Support the stateless 2026-07-28 MCP revision once clients adopt it. Today the plugin supports 2025-11-25, 2025-06-18 and 2025-03-26.
+OAuth 2.1 (authorization server, dynamic client registration, PKCE with a Jellyfin login page) was built and discarded on 2026-11-05. Static, per-user scoped tokens created on the plugin page stay the only authentication method.
 
 ## Later
 

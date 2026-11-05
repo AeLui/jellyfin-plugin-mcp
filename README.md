@@ -8,8 +8,8 @@ A Jellyfin plugin that exposes your server to AI assistants through the [Model C
 
 - Jellyfin **12.x** only (compiled against 12.4.0, `targetAbi` 12.4.0.0). Older servers are not supported.
 - Built with .NET 10.
-- MCP transport: Streamable HTTP, stateless, `POST /mcp`. Protocol revisions 2025-11-25, 2025-06-18 and 2025-03-26. The stateless 2026-07-28 revision is not supported yet (see the [roadmap](docs/roadmap.md)).
-- Clients that send a static `Authorization: Bearer` header work; Claude Code is the supported client. Claude Desktop through `mcp-remote` is expected to work but is not yet verified. claude.ai web connectors need OAuth and are not supported yet.
+- MCP transport: Streamable HTTP, stateless, `POST /mcp`. Protocol revisions 2026-07-28 (stateless, with `server/discover`) and 2025-11-25, 2025-06-18 and 2025-03-26 (with `initialize`). Tools return `structuredContent` described by an `outputSchema`.
+- Clients that send a static `Authorization: Bearer` header work; Claude Code is the supported client. Claude Desktop through `mcp-remote` is expected to work but is not yet verified. claude.ai web connectors need OAuth, which this plugin does not offer.
 
 ## Install in three steps
 

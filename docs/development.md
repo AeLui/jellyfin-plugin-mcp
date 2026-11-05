@@ -76,7 +76,7 @@ Checklist:
 6. `curl -i http://localhost:8096/mcp` answers 405.
 7. As admin, fetch the real root folder id from `GET /Items/Root` and pass it as `libraryId` to `jellyfin_search` and `jellyfin_recently_added` and as `parentId` to `jellyfin_browse` with the restricted user's token: each must answer `Item not found` and list nothing from the hidden library.
 8. With the restricted user's token, `jellyfin_browse` a normal library, the Playlists view and the Collections view (ids from `jellyfin_list_libraries`): the lists are not empty, and another user's private playlist and items of a hidden library must not appear. Also call `jellyfin_get_person` with an actor credited only in the hidden library: `Item not found`.
-9. Optional: with an admin token holding all scopes, `/mcp` lists 22 tools; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
+9. Optional: with an admin token holding all scopes, `/mcp` lists 22 tools, each with a `title` and an `outputSchema`, and `tools/call` results carry `structuredContent`; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
 
 Fix any defect with a test first.
 

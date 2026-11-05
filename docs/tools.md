@@ -6,8 +6,10 @@
 
 - **Ids** are GUIDs. Results use the 32-hex "N" form (`3f2a...`); both forms are accepted as input.
 - **Annotations** are the MCP hints `readOnlyHint` (RO), `destructiveHint` (D) and `idempotentHint` (I). Every tool declares all three.
-- **Results** are returned as one text content block containing compact JSON. Null fields are omitted.
-- **Errors** are results with `isError: true` and a message, for example `Invalid argument 'limit': must be an integer`, `Item not found` or `Session not found`. Unexpected failures return `Internal error while running <tool>` without details.
+- **Results** are JSON objects, returned twice with identical content: as `structuredContent` and, for clients that only read text, as one text content block. Null fields are omitted.
+- **Output schemas**: every tool declares an `outputSchema` (JSON Schema 2020-12) describing its `structuredContent`. Object schemas set `additionalProperties: false`; optional fields are simply absent when empty.
+- **Titles**: every tool has a short display `title`, also repeated in `annotations.title`.
+- **Errors** are results with `isError: true`, a text message and no `structuredContent`, for example `Invalid argument 'limit': must be an integer`, `Item not found` or `Session not found`. Unexpected failures return `Internal error while running <tool>` without details.
 - **Paging**: list tools take `limit` (integer, default 20, clamped to 1..`Max page size`, default 100) and `startIndex` (integer, default 0) and return `{ "totalCount": n, "items": [...] }`.
 - **Visibility**: every user-supplied item id is checked against the token user's library access and parental rating. An item the user cannot see is reported as `Item not found`, exactly like an id that does not exist.
 - **Item summary** (used in `items`): `id`, `name`, `type` (snake_case), `year`, `seriesName`, `seasonNumber`, `episodeNumber`, `runtimeMinutes`, `communityRating`, `officialRating`, and the user's `played`, `favorite`, `playbackPositionMinutes`, `lastPlayedDate`.
@@ -16,30 +18,30 @@ The example results below are illustrative, not captured from a live server.
 
 Summary of tools:
 
-| Tool | Scope | RO / D / I |
-|---|---|---|
-| `jellyfin_search` | library | true / false / true |
-| `jellyfin_browse` | library | true / false / true |
-| `jellyfin_get_item` | library | true / false / true |
-| `jellyfin_get_person` | library | true / false / true |
-| `jellyfin_list_libraries` | library | true / false / true |
-| `jellyfin_recently_added` | library | true / false / true |
-| `jellyfin_next_up` | library | true / false / true |
-| `jellyfin_continue_watching` | library | true / false / true |
-| `jellyfin_watch_history` | library | true / false / true |
-| `jellyfin_list_sessions` | playback | true / false / true |
-| `jellyfin_play` | playback | false / false / false |
-| `jellyfin_playback_control` | playback | false / false / true |
-| `jellyfin_send_message` | playback | false / false / false |
-| `jellyfin_list_playlists` | manage | true / false / true |
-| `jellyfin_manage_playlist` | manage | false / true / false |
-| `jellyfin_set_favorite` | manage | false / false / true |
-| `jellyfin_set_played` | manage | false / true / true |
-| `jellyfin_list_users` | admin | true / false / true |
-| `jellyfin_list_tasks` | admin | true / false / true |
-| `jellyfin_run_task` | admin | false / true / false |
-| `jellyfin_scan_libraries` | admin | false / false / true |
-| `jellyfin_refresh_item` | admin | false / true / false |
+| Tool | Title | Scope | RO / D / I |
+|---|---|---|---|
+| `jellyfin_search` | Search library | library | true / false / true |
+| `jellyfin_browse` | Browse folder | library | true / false / true |
+| `jellyfin_get_item` | Get item details | library | true / false / true |
+| `jellyfin_get_person` | Get person | library | true / false / true |
+| `jellyfin_list_libraries` | List libraries | library | true / false / true |
+| `jellyfin_recently_added` | Recently added | library | true / false / true |
+| `jellyfin_next_up` | Next up | library | true / false / true |
+| `jellyfin_continue_watching` | Continue watching | library | true / false / true |
+| `jellyfin_watch_history` | Watch history | library | true / false / true |
+| `jellyfin_list_sessions` | List devices | playback | true / false / true |
+| `jellyfin_play` | Play on device | playback | false / false / false |
+| `jellyfin_playback_control` | Control playback | playback | false / false / true |
+| `jellyfin_send_message` | Send message to device | playback | false / false / false |
+| `jellyfin_list_playlists` | List playlists | manage | true / false / true |
+| `jellyfin_manage_playlist` | Manage playlist | manage | false / true / false |
+| `jellyfin_set_favorite` | Set favorite | manage | false / false / true |
+| `jellyfin_set_played` | Set watched state | manage | false / true / true |
+| `jellyfin_list_users` | List users | admin | true / false / true |
+| `jellyfin_list_tasks` | List scheduled tasks | admin | true / false / true |
+| `jellyfin_run_task` | Run scheduled task | admin | false / true / false |
+| `jellyfin_scan_libraries` | Scan libraries | admin | false / false / true |
+| `jellyfin_refresh_item` | Refresh item metadata | admin | false / true / false |
 
 In the parameter tables, "req" means required.
 
@@ -125,13 +127,13 @@ Either `personId` or `name` is required. People belong to no library, so only th
 
 ### jellyfin_list_libraries
 
-List the media libraries the user can access, with their ids and collection types. No parameters.
+List the media libraries the user can access, with their ids and collection types, as `{ "items": [...] }` (not paged). No parameters.
 
 ```json
 {"name":"jellyfin_list_libraries","arguments":{}}
 ```
 ```json
-[{"id":"c0ffee...","name":"Movies","collectionType":"movies"},{"id":"d00d...","name":"Shows","collectionType":"tvshows"}]
+{"items":[{"id":"c0ffee...","name":"Movies","collectionType":"movies"},{"id":"d00d...","name":"Shows","collectionType":"tvshows"}]}
 ```
 
 ### jellyfin_recently_added
@@ -205,13 +207,13 @@ These tools control player sessions. A token controls the active, remote-control
 
 ### jellyfin_list_sessions
 
-List the active player sessions you can control, with what each is playing. No parameters.
+List the active player sessions you can control, with what each is playing, as `{ "items": [...] }` (not paged). No parameters.
 
 ```json
 {"name":"jellyfin_list_sessions","arguments":{}}
 ```
 ```json
-[{"sessionId":"7c1d...","deviceName":"Living room TV","client":"Jellyfin Android TV","userName":"alice","nowPlaying":{"id":"...","name":"Dune","type":"movie"},"isPaused":false,"positionMinutes":48.5}]
+{"items":[{"sessionId":"7c1d...","deviceName":"Living room TV","client":"Jellyfin Android TV","userName":"alice","nowPlaying":{"id":"...","name":"Dune","type":"movie"},"isPaused":false,"positionMinutes":48.5}]}
 ```
 
 ### jellyfin_play
@@ -352,24 +354,24 @@ Only for Jellyfin administrators. At request time the `admin` scope is dropped f
 
 ### jellyfin_list_users
 
-List the server's users: id (32-character hex without dashes, like every other id), name, administrator and disabled flags, and last activity and login dates. Read-only; no password, policy or authentication-provider details are exposed. No parameters.
+List the server's users: id (32-character hex without dashes, like every other id), name, administrator and disabled flags, and last activity and login dates, as `{ "items": [...] }` (not paged). Read-only; no password, policy or authentication-provider details are exposed. No parameters.
 
 ```json
 {"name":"jellyfin_list_users","arguments":{}}
 ```
 ```json
-[{"id":"1a2b3c4d5e6f47088192a3b4c5d6e7f8","name":"alice","isAdministrator":true,"isDisabled":false,"lastActivityDate":"2026-11-01T18:00:00.0000000Z"}]
+{"items":[{"id":"1a2b3c4d5e6f47088192a3b4c5d6e7f8","name":"alice","isAdministrator":true,"isDisabled":false,"lastActivityDate":"2026-11-01T18:00:00.0000000Z"}]}
 ```
 
 ### jellyfin_list_tasks
 
-List the server's scheduled tasks with their state, progress (percent) and last result. No parameters.
+List the server's scheduled tasks with their state, progress (percent) and last result, as `{ "items": [...] }` (not paged). No parameters.
 
 ```json
 {"name":"jellyfin_list_tasks","arguments":{}}
 ```
 ```json
-[{"id":"b7c8...","key":"RefreshLibrary","name":"Scan Media Library","category":"Library","state":"Idle","lastResult":{"status":"Completed","endTime":"2026-11-02T03:00:12.0000000Z"}}]
+{"items":[{"id":"b7c8...","key":"RefreshLibrary","name":"Scan Media Library","category":"Library","state":"Idle","lastResult":{"status":"Completed","endTime":"2026-11-02T03:00:12.0000000Z"}}]}
 ```
 
 ### jellyfin_run_task
