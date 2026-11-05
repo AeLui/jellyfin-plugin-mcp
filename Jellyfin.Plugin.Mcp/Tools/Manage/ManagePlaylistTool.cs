@@ -25,6 +25,15 @@ public sealed class ManagePlaylistTool : ManageToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"action":{"type":"string","enum":["create","add_items","remove_items","rename","delete"],"description":"What to do."},"playlistId":{"type":"string","description":"Playlist id (GUID); required for every action except create."},"name":{"type":"string","description":"Playlist name; required for create and rename."},"itemIds":{"type":"array","items":{"type":"string"},"description":"Item ids (GUIDs) to put in the playlist; optional for create, required for add_items."},"entryIds":{"type":"array","items":{"type":"string"},"description":"Entry ids from jellyfin_list_playlists; required for remove_items."}},"required":["action"]}""").RootElement.Clone();
 
+    private static readonly JsonElement ResultSchema = OutputSchemas.Parse(
+        "{\"type\":\"object\",\"oneOf\":["
+            + Variant("create", "\"name\":{\"type\":\"string\"}", "name") + ","
+            + Variant("add_items", "\"requestedCount\":{\"type\":\"integer\"}", "requestedCount") + ","
+            + Variant("remove_items", "\"removedCount\":{\"type\":\"integer\"}", "removedCount") + ","
+            + Variant("rename", "\"name\":{\"type\":\"string\"}", "name") + ","
+            + Variant("delete", null, null)
+            + "]}");
+
     private readonly ItemLookup _lookup;
     private readonly IPlaylistManager _playlistManager;
     private readonly PlaylistResolver _resolver;
@@ -68,6 +77,9 @@ public sealed class ManagePlaylistTool : ManageToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => ResultSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, true, false);
@@ -115,6 +127,15 @@ public sealed class ManagePlaylistTool : ManageToolBase
         }
 
         return ids;
+    }
+
+    private static string Variant(string action, string? extraProperty, string? extraRequired)
+    {
+        var properties = "\"action\":{\"const\":\"" + action + "\"},\"playlistId\":{\"type\":\"string\"}"
+            + (extraProperty is null ? string.Empty : "," + extraProperty);
+        return extraRequired is null
+            ? OutputSchemas.ObjectJson(properties, "action", "playlistId")
+            : OutputSchemas.ObjectJson(properties, "action", "playlistId", extraRequired);
     }
 
     private async Task<ToolResult> CreateAsync(ToolArguments args, User user)

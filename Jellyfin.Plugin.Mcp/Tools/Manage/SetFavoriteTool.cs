@@ -17,6 +17,8 @@ public sealed class SetFavoriteTool : ManageToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"itemId":{"type":"string","description":"Item id (GUID)."},"favorite":{"type":"boolean","description":"true to add to favorites, false to remove."}},"required":["itemId","favorite"]}""").RootElement.Clone();
 
+    private static readonly JsonElement SummarySchema = OutputSchemas.Parse(OutputSchemas.ItemSummary);
+
     private readonly ItemLookup _lookup;
     private readonly IUserDataManager _userDataManager;
 
@@ -45,6 +47,9 @@ public sealed class SetFavoriteTool : ManageToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => SummarySchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, false, true);

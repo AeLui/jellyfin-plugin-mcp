@@ -24,6 +24,19 @@ public sealed class ListPlaylistsTool : ManageToolBase
         "startIndex":{"type":"integer","description":"Offset of the first result, default 0."}}}
         """).RootElement.Clone();
 
+    private static readonly JsonElement PlaylistsSchema = OutputSchemas.Object(
+        "\"totalCount\":{\"type\":\"integer\"},\"items\":{\"type\":\"array\",\"items\":{\"anyOf\":["
+            + OutputSchemas.ObjectJson(
+                "\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"isOwner\":{\"type\":\"boolean\"},"
+                    + "\"canEdit\":{\"type\":\"boolean\"},\"isPublic\":{\"type\":\"boolean\"}",
+                "id",
+                "isOwner",
+                "canEdit",
+                "isPublic")
+            + "," + OutputSchemas.PlaylistEntry + "]}}",
+        "totalCount",
+        "items");
+
     private readonly IPlaylistManager _playlistManager;
     private readonly PlaylistResolver _resolver;
     private readonly IUserDataManager _userDataManager;
@@ -55,6 +68,9 @@ public sealed class ListPlaylistsTool : ManageToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => PlaylistsSchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(true, false, true);

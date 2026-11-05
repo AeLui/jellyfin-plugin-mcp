@@ -8,6 +8,7 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tests.Auth;
+using Jellyfin.Plugin.Mcp.Tests.Tools;
 using Jellyfin.Plugin.Mcp.Tools;
 using Jellyfin.Plugin.Mcp.Tools.Manage;
 using MediaBrowser.Controller.Entities;
@@ -340,5 +341,91 @@ public sealed class ManageToolsTests : IDisposable
         Assert.True(SetPlayed().Annotations.Destructive);
         Assert.Contains("cannot be undone", SetPlayed().Description, StringComparison.Ordinal);
         Assert.True(SetFavorite().Annotations.Idempotent);
+    }
+
+    [Fact]
+    public async Task SetPlayed_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        var tool = SetPlayed();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}","played":true}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SetFavorite_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        _userData.Setup(d => d.GetUserData(_user, movie)).Returns(new UserItemData { Key = "k" });
+        var tool = SetFavorite();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"itemId":"{{movie.Id}}","favorite":true}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ListPlaylists_BothShapes_ConformToOutputSchema()
+    {
+        var movie = AddMovie();
+        var playlist = AddPlaylist(_user.Id);
+        playlist.Object.LinkedChildren = [LinkedChild.Create(movie)];
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([movie]);
+        _playlists.Setup(p => p.GetPlaylists(_user.Id)).Returns([playlist.Object]);
+        var tool = List();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None));
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"playlistId":"{{playlist.Object.Id}}"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_Create_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        _playlists.Setup(p => p.CreatePlaylist(It.IsAny<PlaylistCreationRequest>())).ReturnsAsync(new PlaylistCreationResult("abc"));
+        var tool = Manage();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"action":"create","name":"Mix","itemIds":["{{movie.Id}}"]}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_AddItems_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        var playlist = AddPlaylist(_user.Id);
+        var tool = Manage();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(
+            Args($$"""{"action":"add_items","playlistId":"{{playlist.Object.Id}}","itemIds":["{{movie.Id}}"]}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_RemoveItems_ConformsToOutputSchema()
+    {
+        var movie = AddMovie();
+        var playlist = AddPlaylist(_user.Id);
+        playlist.Object.LinkedChildren = [LinkedChild.Create(movie)];
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([movie]);
+        var tool = Manage();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(
+            Args($$"""{"action":"remove_items","playlistId":"{{playlist.Object.Id}}","entryIds":["{{movie.Id:N}}"]}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_Rename_ConformsToOutputSchema()
+    {
+        var playlist = AddPlaylist(_user.Id);
+        _playlists.Setup(p => p.UpdatePlaylist(It.IsAny<PlaylistUpdateRequest>())).Returns(Task.CompletedTask);
+        var tool = Manage();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"action":"rename","playlistId":"{{playlist.Object.Id}}","name":"New"}"""), _principal, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_Delete_ConformsToOutputSchema()
+    {
+        var playlist = AddPlaylist(_user.Id);
+        var tool = Manage();
+
+        SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"action":"delete","playlistId":"{{playlist.Object.Id}}"}"""), _principal, CancellationToken.None));
     }
 }

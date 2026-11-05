@@ -16,6 +16,8 @@ public sealed class SetPlayedTool : ManageToolBase
     private static readonly JsonElement Schema = JsonDocument.Parse(
         """{"type":"object","properties":{"itemId":{"type":"string","description":"Item id (GUID). Series and seasons also update their episodes."},"played":{"type":"boolean","description":"true to mark as played, false to mark as unplayed."}},"required":["itemId","played"]}""").RootElement.Clone();
 
+    private static readonly JsonElement SummarySchema = OutputSchemas.Parse(OutputSchemas.ItemSummary);
+
     private readonly ItemLookup _lookup;
     private readonly IUserDataManager _userDataManager;
 
@@ -44,6 +46,9 @@ public sealed class SetPlayedTool : ManageToolBase
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
+
+    /// <inheritdoc />
+    public override JsonElement? OutputSchema => SummarySchema;
 
     /// <inheritdoc />
     public override ToolAnnotations Annotations { get; } = new(false, true, true);
