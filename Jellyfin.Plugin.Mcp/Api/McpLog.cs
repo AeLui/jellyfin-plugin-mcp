@@ -11,6 +11,9 @@ internal static partial class McpLog
     [LoggerMessage(Level = LogLevel.Information, Message = "MCP tool call {ToolName} by user {UserId} took {DurationMs} ms (success: {Success})")]
     public static partial void ToolCall(ILogger logger, string toolName, Guid userId, long durationMs, bool success);
 
+    [LoggerMessage(Level = LogLevel.Debug, Message = "MCP request rejected: origin {Origin} is not allowed")]
+    public static partial void OriginRejected(ILogger logger, string origin);
+
     [LoggerMessage(Level = LogLevel.Error, Message = "MCP tool {ToolName} failed unexpectedly")]
     public static partial void ToolFailure(ILogger logger, Exception exception, string toolName);
 }

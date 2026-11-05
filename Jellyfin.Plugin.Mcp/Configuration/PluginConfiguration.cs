@@ -24,6 +24,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool LogToolCalls { get; set; }
 
     /// <summary>
+    /// Gets or sets the browser origins allowed to call the MCP endpoint, besides the server's own host.
+    /// </summary>
+#pragma warning disable CA2227 // Collection properties should be read only (required for XML serialization)
+    public Collection<string> AllowedOrigins { get; set; } = new();
+#pragma warning restore CA2227
+
+    /// <summary>
     /// Gets or sets the configured access tokens.
     /// </summary>
 #pragma warning disable CA2227 // Collection properties should be read only (required for XML serialization)

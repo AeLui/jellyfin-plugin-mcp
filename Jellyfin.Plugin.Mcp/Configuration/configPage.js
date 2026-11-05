@@ -222,6 +222,7 @@ export default function (view) {
             config.Enabled = $('mcpEnabled').checked;
             config.MaxPageSize = Math.min(1000, Math.max(1, parseInt($('mcpMaxPageSize').value, 10) || 100));
             config.LogToolCalls = $('mcpLogToolCalls').checked;
+            config.AllowedOrigins = $('mcpAllowedOrigins').value.split('\n').map((o) => o.trim()).filter((o) => o.length > 0);
             Dashboard.processPluginConfigurationUpdateResult(await ApiClient.updatePluginConfiguration(PLUGIN_ID, config));
         } catch (e) {
             Dashboard.hideLoadingMsg();
@@ -240,6 +241,7 @@ export default function (view) {
             $('mcpEnabled').checked = config.Enabled;
             $('mcpMaxPageSize').value = config.MaxPageSize;
             $('mcpLogToolCalls').checked = config.LogToolCalls;
+            $('mcpAllowedOrigins').value = (config.AllowedOrigins || []).join('\n');
             users = userList;
             fillUsers();
             await loadTokens();

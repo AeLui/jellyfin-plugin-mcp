@@ -41,6 +41,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             GetConfiguration));
         serviceCollection.AddSingleton(McpServerInfo.FromAssembly());
         serviceCollection.AddSingleton<IPluginSettings, PluginSettings>();
+        serviceCollection.AddSingleton<OriginPolicy>();
         serviceCollection.AddSingleton<ItemLookup>();
         serviceCollection.AddSingleton<SessionResolver>();
         serviceCollection.AddSingleton<PlaylistResolver>();

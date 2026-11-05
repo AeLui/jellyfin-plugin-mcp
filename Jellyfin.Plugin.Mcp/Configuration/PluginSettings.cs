@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Jellyfin.Plugin.Mcp.Configuration;
 
@@ -11,4 +12,7 @@ public sealed class PluginSettings : IPluginSettings
 
     /// <inheritdoc />
     public int MaxPageSize => Math.Max(1, Plugin.Instance?.Configuration.MaxPageSize ?? DefaultMaxPageSize);
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string> AllowedOrigins => Plugin.Instance?.Configuration.AllowedOrigins ?? (IReadOnlyCollection<string>)Array.Empty<string>();
 }

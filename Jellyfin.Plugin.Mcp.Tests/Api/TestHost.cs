@@ -64,6 +64,9 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddSingleton<IClock>(clock);
         builder.Services.AddSingleton(users.Object);
         builder.Services.AddSingleton(new AuthFailureLimiter(clock));
+        var settings = new Mock<IPluginSettings>();
+        settings.SetupGet(s => s.AllowedOrigins).Returns(() => config.AllowedOrigins);
+        builder.Services.AddSingleton(new OriginPolicy(settings.Object));
         builder.Services.AddSingleton(sp => new TokenAuthenticator(
             sp.GetRequiredService<ITokenStore>(),
             sp.GetRequiredService<IUserManager>(),

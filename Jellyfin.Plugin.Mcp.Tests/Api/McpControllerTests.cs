@@ -265,4 +265,41 @@ public class McpControllerTests
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(-32020, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
     }
+
+    [Fact]
+    public async Task Post_ForeignOrigin_Returns403BeforeAuth()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var request = host.Post(Ping, token: null);
+        request.Headers.Add("Origin", "https://evil.example");
+
+        var response = await host.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Post_NoOrigin_Works()
+    {
+        await using var host = await McpTestHost.StartAsync();
+
+        var response = await host.Client.SendAsync(host.Post(Ping));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_SameHostOrListedOrigin_Works()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var sameHost = host.Post(Ping);
+        sameHost.Headers.Add("Origin", "https://localhost:8920");
+        host.Config.AllowedOrigins.Add("https://inspector.example");
+        var listed = host.Post(Ping);
+        listed.Headers.Add("Origin", "https://inspector.example");
+
+        Assert.Equal(HttpStatusCode.OK, (await host.Client.SendAsync(sameHost)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await host.Client.SendAsync(listed)).StatusCode);
+    }
 }

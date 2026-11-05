@@ -9,6 +9,7 @@ using Jellyfin.Plugin.Mcp.Mcp;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Mcp.Api;
 
@@ -28,16 +29,22 @@ public sealed class McpController : ControllerBase
 
     private readonly TokenAuthenticator _authenticator;
     private readonly JsonRpcDispatcher _dispatcher;
+    private readonly OriginPolicy _originPolicy;
+    private readonly ILogger<McpController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="McpController"/> class.
     /// </summary>
     /// <param name="authenticator">The token authenticator.</param>
     /// <param name="dispatcher">The JSON-RPC dispatcher.</param>
-    public McpController(TokenAuthenticator authenticator, JsonRpcDispatcher dispatcher)
+    /// <param name="originPolicy">The Origin header policy.</param>
+    /// <param name="logger">The logger.</param>
+    public McpController(TokenAuthenticator authenticator, JsonRpcDispatcher dispatcher, OriginPolicy originPolicy, ILogger<McpController> logger)
     {
         _authenticator = authenticator;
         _dispatcher = dispatcher;
+        _originPolicy = originPolicy;
+        _logger = logger;
     }
 
     /// <summary>
@@ -50,6 +57,18 @@ public sealed class McpController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> Post(CancellationToken ct)
     {
+        // Checked before authentication: a browser page on another site must not even learn whether a token is valid.
+        var origin = Request.Headers.Origin.FirstOrDefault();
+        if (!_originPolicy.IsAllowed(origin, Request.Host.Host))
+        {
+            McpLog.OriginRejected(_logger, origin!);
+
+            // Written directly: [ApiController] would turn StatusCode(403) into a problem-details body.
+            Response.StatusCode = StatusCodes.Status403Forbidden;
+            Response.ContentLength = 0;
+            return new EmptyResult();
+        }
+
         AuthResult auth;
         try
         {

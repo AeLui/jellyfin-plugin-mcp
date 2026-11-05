@@ -5,7 +5,7 @@
     <title>MCP Server</title>
 </head>
 <body>
-    <div id="McpServerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select" data-controller="__plugin/McpServerJs">
+    <div id="McpServerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select,emby-textarea" data-controller="__plugin/McpServerJs">
         <div data-role="content">
             <div class="content-primary">
 
@@ -41,6 +41,11 @@
                                 <span>Log tool calls</span>
                             </label>
                             <div class="fieldDescription checkboxFieldDescription">Writes one log line per tool call (tool name, user, duration, outcome; never arguments or tokens).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="textareaLabel" for="mcpAllowedOrigins">Allowed origins</label>
+                            <textarea id="mcpAllowedOrigins" is="emby-textarea" class="textarea-mono emby-textarea" rows="3"></textarea>
+                            <div class="fieldDescription">Browser-based MCP clients send an Origin header. Requests without one (Claude Code, Claude Desktop, scripts) are always allowed. Add the exact origin of a browser client here, one per line, for example https://inspector.example.com.</div>
                         </div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save settings</span>
