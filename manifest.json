@@ -9,6 +9,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.2.0.0",
+        "changelog": "Tools return structuredContent with a declared outputSchema, and every tool has a display title. Adds MCP protocol revision 2026-07-28 (stateless, with server/discover) next to 2025-11-25, 2025-06-18 and 2025-03-26. Validates the Origin header on /mcp, with a new \"Allowed origins\" setting for browser-based clients. Server instructions explain how the tools fit together. Breaking: jellyfin_list_tasks, jellyfin_list_users, jellyfin_list_libraries and jellyfin_list_sessions now return { \"items\": [...] } instead of a bare array.",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/AeLui/jellyfin-plugin-mcp/releases/download/v0.2.0/jellyfin-plugin-mcp_0.2.0.0.zip",
+        "checksum": "04122712493add69ac95015fadd543e4",
+        "timestamp": "2026-11-06T06:49:51Z"
+      },
+      {
         "version": "0.1.0.0",
         "changelog": "Initial release.",
         "targetAbi": "12.4.0.0",
