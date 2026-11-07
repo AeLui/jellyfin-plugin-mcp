@@ -62,7 +62,8 @@ public static class StatelessRequestValidator
             return Mismatch("Mcp-Method");
         }
 
-        if (string.Equals(method, "tools/call", StringComparison.Ordinal))
+        // Mcp-Name mirrors params.name for these methods (resources/read would use params.uri; resources are not served).
+        if (string.Equals(method, "tools/call", StringComparison.Ordinal) || string.Equals(method, "prompts/get", StringComparison.Ordinal))
         {
             if (headers.Name is null)
             {

@@ -62,6 +62,8 @@ public sealed partial class JsonRpcDispatcher
                     "server/discover" => Status(200, JsonRpcMessages.Success(id, WriteDiscoverResult)),
                     "tools/list" => Status(200, JsonRpcMessages.Success(id, writer => WriteToolsList(writer, principal, true))),
                     "tools/call" => Status(200, await HandleToolsCallAsync(id, parameters, principal, true, ct).ConfigureAwait(false)),
+                    "prompts/list" => Status(200, JsonRpcMessages.Success(id, writer => WritePromptsList(writer, principal, true))),
+                    "prompts/get" => Status(200, HandlePromptsGet(id, parameters, principal, true)),
                     _ => Status(404, JsonRpcMessages.Error(id, JsonRpcErrorCodes.MethodNotFound, "Method not found: " + envelope.Method)),
                 };
             }
@@ -177,6 +179,8 @@ public sealed partial class JsonRpcDispatcher
         writer.WriteEndArray();
         writer.WriteStartObject("capabilities");
         writer.WriteStartObject("tools");
+        writer.WriteEndObject();
+        writer.WriteStartObject("prompts");
         writer.WriteEndObject();
         writer.WriteEndObject();
         writer.WriteString("instructions", Instructions);

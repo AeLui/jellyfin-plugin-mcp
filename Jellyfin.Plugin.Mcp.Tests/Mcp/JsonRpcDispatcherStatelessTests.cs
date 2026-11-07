@@ -20,7 +20,7 @@ public class JsonRpcDispatcherStatelessTests
     private static readonly McpPrincipal Principal = new(Guid.NewGuid(), new HashSet<string> { McpScopes.Library });
 
     private static JsonRpcDispatcher Dispatcher()
-        => new(new ToolRegistry(new IMcpTool[] { new FakeTool("jellyfin_t", McpScopes.Library) }), new PromptRegistry(Array.Empty<IMcpPrompt>()), new McpServerInfo("jellyfin-mcp", "1.2.3"));
+        => new(new ToolRegistry(new IMcpTool[] { new FakeTool("jellyfin_t", McpScopes.Library) }), new PromptRegistry(new IMcpPrompt[] { new FakePrompt("p_lib", McpScopes.Library) }), new McpServerInfo("jellyfin-mcp", "1.2.3"));
 
     private static string Request(string method, string? extraParams = null, int id = 1)
         => "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"" + method + "\",\"params\":{" + (extraParams is null ? string.Empty : extraParams + ",") + Meta + "}}";
@@ -170,5 +170,62 @@ public class JsonRpcDispatcherStatelessTests
         var response = await Send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}", null, version: null);
 
         Assert.Equal(Instructions, Parse(response).GetProperty("result").GetProperty("instructions").GetString());
+    }
+
+    [Fact]
+    public async Task Stateless_Discover_AdvertisesPrompts()
+    {
+        var prompts = Parse(await Send(Request("server/discover"), "server/discover")).GetProperty("result").GetProperty("capabilities").GetProperty("prompts");
+
+        Assert.Equal(JsonValueKind.Object, prompts.ValueKind);
+        Assert.Empty(prompts.EnumerateObject());
+    }
+
+    [Fact]
+    public async Task Stateless_PromptsList_HasCacheHints()
+    {
+        var response = await Send(Request("prompts/list"), "prompts/list");
+
+        Assert.Equal(200, response.StatusCode);
+        var result = Parse(response).GetProperty("result");
+        Assert.Equal("complete", result.GetProperty("resultType").GetString());
+        Assert.Equal("p_lib", Assert.Single(result.GetProperty("prompts").EnumerateArray()).GetProperty("name").GetString());
+        Assert.Equal(300000, result.GetProperty("ttlMs").GetInt32());
+        Assert.Equal("private", result.GetProperty("cacheScope").GetString());
+        AssertServerInfo(result);
+    }
+
+    [Fact]
+    public async Task Stateless_PromptsGet_HasResultTypeAndMeta_NoCacheHints()
+    {
+        var response = await Send(Request("prompts/get", "\"name\":\"p_lib\""), "prompts/get", "p_lib");
+
+        Assert.Equal(200, response.StatusCode);
+        var result = Parse(response).GetProperty("result");
+        Assert.Equal("complete", result.GetProperty("resultType").GetString());
+        Assert.Equal("Text of p_lib", result.GetProperty("messages")[0].GetProperty("content").GetProperty("text").GetString());
+        Assert.False(result.TryGetProperty("ttlMs", out _));
+        Assert.False(result.TryGetProperty("cacheScope", out _));
+        AssertServerInfo(result);
+    }
+
+    [Fact]
+    public async Task Stateless_PromptsGet_UnknownPrompt_Status200_InvalidParams()
+    {
+        var response = await Send(Request("prompts/get", "\"name\":\"nope\""), "prompts/get", "nope");
+
+        Assert.Equal(200, response.StatusCode);
+        var error = Parse(response).GetProperty("error");
+        Assert.Equal(-32602, error.GetProperty("code").GetInt32());
+        Assert.Equal("Unknown prompt: nope", error.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Stateless_PromptsGet_WithoutMcpName_Is400()
+    {
+        var response = await Send(Request("prompts/get", "\"name\":\"p_lib\""), "prompts/get");
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal(-32020, Parse(response).GetProperty("error").GetProperty("code").GetInt32());
     }
 }

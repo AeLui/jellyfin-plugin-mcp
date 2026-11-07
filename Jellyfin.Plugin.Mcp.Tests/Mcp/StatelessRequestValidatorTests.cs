@@ -109,4 +109,47 @@ public class StatelessRequestValidatorTests
 
         Assert.DoesNotContain("s3cr3t", error!.Message, StringComparison.Ordinal);
     }
+
+    private static JsonElement GetPrompt(string name)
+        => Message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"prompts/get\",\"params\":{\"name\":\"" + name + "\"," + Meta + "}}");
+
+    [Fact]
+    public void PromptsGet_MissingMcpName()
+    {
+        var error = StatelessRequestValidator.Validate(GetPrompt("movie_night"), Headers("prompts/get", null));
+
+        Assert.Equal(-32020, error!.Code);
+        Assert.Equal("Header mismatch: missing Mcp-Name header", error.Message);
+    }
+
+    [Fact]
+    public void PromptsGet_MismatchedMcpName()
+    {
+        var error = StatelessRequestValidator.Validate(GetPrompt("movie_night"), Headers("prompts/get", "whats_new"));
+
+        Assert.Equal(-32020, error!.Code);
+        Assert.Equal("Header mismatch: Mcp-Name header does not match the request body", error.Message);
+    }
+
+    [Fact]
+    public void PromptsGet_MatchingMcpName_IsValid()
+    {
+        Assert.Null(StatelessRequestValidator.Validate(GetPrompt("movie_night"), Headers("prompts/get", "movie_night")));
+    }
+
+    [Fact]
+    public void PromptsGet_Base64McpName_Matches()
+    {
+        var header = "=?base64?" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("película")) + "?=";
+
+        Assert.Null(StatelessRequestValidator.Validate(GetPrompt("película"), Headers("prompts/get", header)));
+    }
+
+    [Fact]
+    public void PromptsList_NeedsNoMcpName()
+    {
+        var message = Message("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"prompts/list\",\"params\":{" + Meta + "}}");
+
+        Assert.Null(StatelessRequestValidator.Validate(message, Headers("prompts/list", null)));
+    }
 }
