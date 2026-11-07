@@ -99,6 +99,10 @@ public class ToolArgumentsTests
     [Theory]
     [InlineData("""{"since":"yesterday"}""")]
     [InlineData("""{"since":5}""")]
+    [InlineData("""{"since":"07/11/2026"}""")]
+    [InlineData("""{"since":"12:00"}""")]
+    [InlineData("""{"since":"Nov 7"}""")]
+    [InlineData("""{"since":"2026-11"}""")]
     public void GetUtcDateTime_RejectsNonDates(string json)
     {
         var ex = Assert.Throws<ToolException>(() => Args(json).GetUtcDateTime("since"));

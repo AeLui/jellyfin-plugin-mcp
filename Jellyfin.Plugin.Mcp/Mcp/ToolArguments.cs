@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.Mcp.Mcp;
 
 /// <summary>
 /// Typed access to the <c>arguments</c> object of a tool call.
 /// </summary>
-public sealed class ToolArguments
+public sealed partial class ToolArguments
 {
     private const int DefaultLimit = 20;
 
@@ -95,8 +96,11 @@ public sealed class ToolArguments
             return null;
         }
 
+        // Only an ISO 8601 calendar date first: the general parser would also take "07/11/2026" or "12:00" and filter on the wrong day.
         if (element.ValueKind == JsonValueKind.String
-            && DateTimeOffset.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value))
+            && element.GetString() is { } text
+            && IsoDatePrefix().IsMatch(text)
+            && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value))
         {
             return value.UtcDateTime;
         }
@@ -285,4 +289,7 @@ public sealed class ToolArguments
         element = default;
         return false;
     }
+
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}(T|$)", RegexOptions.CultureInvariant)]
+    private static partial Regex IsoDatePrefix();
 }
