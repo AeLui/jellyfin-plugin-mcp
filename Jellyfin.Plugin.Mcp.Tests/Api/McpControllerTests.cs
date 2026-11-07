@@ -175,6 +175,8 @@ public class McpControllerTests
         services.AddSingleton(new Mock<ISimilarItemsManager>().Object);
         services.AddSingleton(new Mock<MediaBrowser.Controller.Collections.ICollectionManager>().Object);
         services.AddSingleton(new Mock<IMediaSourceManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.ISystemManager>().Object);
+        services.AddSingleton(new Mock<IServerApplicationHost>().Object);
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
@@ -194,15 +196,15 @@ public class McpControllerTests
     }
 
     [Fact]
-    public void Registrator_RegistersExactly26Tools()
+    public void Registrator_RegistersExactly27Tools()
     {
         var services = new ServiceCollection();
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         var tools = services.Where(d => d.ServiceType == typeof(IMcpTool)).Select(d => d.ImplementationType!).ToList();
 
-        Assert.Equal(26, tools.Count);
-        Assert.Equal(26, tools.Distinct().Count());
+        Assert.Equal(27, tools.Count);
+        Assert.Equal(27, tools.Distinct().Count());
     }
 
     [Fact]
@@ -223,14 +225,16 @@ public class McpControllerTests
         services.AddSingleton(new Mock<ISimilarItemsManager>().Object);
         services.AddSingleton(new Mock<MediaBrowser.Controller.Collections.ICollectionManager>().Object);
         services.AddSingleton(new Mock<IMediaSourceManager>().Object);
+        services.AddSingleton(new Mock<MediaBrowser.Controller.ISystemManager>().Object);
+        services.AddSingleton(new Mock<IServerApplicationHost>().Object);
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
 
         var tools = scope.ServiceProvider.GetServices<IMcpTool>().ToList();
 
-        Assert.Equal(26, tools.Count);
-        Assert.Equal(26, tools.Select(t => t.Title).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(27, tools.Count);
+        Assert.Equal(27, tools.Select(t => t.Title).Distinct(StringComparer.Ordinal).Count());
         foreach (var tool in tools)
         {
             Assert.False(string.IsNullOrWhiteSpace(tool.Title), tool.Name);

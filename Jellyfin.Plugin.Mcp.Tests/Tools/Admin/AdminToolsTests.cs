@@ -77,7 +77,7 @@ public class AdminToolsTests
             .Where(t => t is { IsAbstract: false } && t.Namespace == typeof(AdminToolBase).Namespace && typeof(IMcpTool).IsAssignableFrom(t))
             .ToList();
 
-        Assert.Equal(5, types.Count);
+        Assert.Equal(6, types.Count);
         var tools = new IMcpTool[]
         {
             Refresh(),
@@ -85,11 +85,12 @@ public class AdminToolsTests
             new ListTasksTool(_users.Object, _settings.Object, _tasks.Object),
             new RunTaskTool(_users.Object, _settings.Object, _tasks.Object),
             new ListUsersTool(_users.Object, _settings.Object),
+            new ServerStatusTool(_users.Object, _settings.Object, new Mock<MediaBrowser.Controller.IServerApplicationHost>().Object, new Mock<MediaBrowser.Controller.ISystemManager>().Object, new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object, _tasks.Object),
         };
         Assert.Equal(types.Select(t => t.Name).Order(), tools.Select(t => t.GetType().Name).Order());
         Assert.All(tools, t => Assert.Equal(McpScopes.Admin, t.RequiredScope));
         Assert.Equal(
-            ["jellyfin_list_tasks", "jellyfin_list_users"],
+            ["jellyfin_list_tasks", "jellyfin_list_users", "jellyfin_server_status"],
             tools.Where(t => t.Annotations.ReadOnly).Select(t => t.Name).Order());
     }
 
