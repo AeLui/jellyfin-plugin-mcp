@@ -18,6 +18,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -32,6 +33,7 @@ public class PlaybackToolsTests
     private readonly Mock<ILibraryManager> _library = new();
     private readonly Mock<ISessionManager> _sessionManager = new();
     private readonly Mock<IPluginSettings> _settings = new();
+    private readonly Mock<IMediaSourceManager> _mediaSources = new();
     private readonly List<SessionInfo> _sessions = [];
     private readonly McpPrincipal _principal;
     private readonly McpPrincipal _adminPrincipal;
@@ -70,7 +72,7 @@ public class PlaybackToolsTests
 
     private ListSessionsTool List() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 
-    private PlayTool Play() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object));
+    private PlayTool Play() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object), new TrackValidator(_mediaSources.Object));
 
     private PlaybackControlTool Control() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 
@@ -448,5 +450,146 @@ public class PlaybackToolsTests
 
         Assert.DoesNotContain("null", result.Text, StringComparison.Ordinal);
         SchemaAssert.Conforms(tool, result);
+    }
+
+    private Movie MovieWithTracks()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Two Voices" };
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
+        _mediaSources.Setup(m => m.GetMediaStreams(movie.Id)).Returns(new[]
+        {
+            new MediaStream { Index = 0, Type = MediaStreamType.Video },
+            new MediaStream { Index = 1, Type = MediaStreamType.Audio, Language = "eng" },
+            new MediaStream { Index = 2, Type = MediaStreamType.Audio, Language = "spa" },
+            new MediaStream { Index = 3, Type = MediaStreamType.Subtitle, Language = "eng" },
+        });
+        return movie;
+    }
+
+    private Func<PlayRequest?> CapturePlay()
+    {
+        PlayRequest? sent = null;
+        _sessionManager.Setup(m => m.SendPlayCommand(It.IsAny<string>(), "mine", It.IsAny<PlayRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, PlayRequest, CancellationToken>((_, _, r, _) => sent = r)
+            .Returns(Task.CompletedTask);
+        return () => sent;
+    }
+
+    [Fact]
+    public async Task Play_WithTracks_SetsRequestIndexes()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var sent = CapturePlay();
+        var tool = Play();
+
+        var result = await tool.ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"audioStreamIndex":2,"subtitleStreamIndex":3}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(2, sent()!.AudioStreamIndex);
+        Assert.Equal(3, sent()!.SubtitleStreamIndex);
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(2, doc.RootElement.GetProperty("audioStreamIndex").GetInt32());
+        Assert.Equal(3, doc.RootElement.GetProperty("subtitleStreamIndex").GetInt32());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task Play_SubtitlesOff_SendsMinusOne()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var sent = CapturePlay();
+
+        await Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"subtitleStreamIndex":-1}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(-1, sent()!.SubtitleStreamIndex);
+        Assert.Null(sent()!.AudioStreamIndex);
+    }
+
+    [Fact]
+    public async Task Play_AudioMinusOne_IsError()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"audioStreamIndex":-1}"""), _principal, CancellationToken.None));
+
+        Assert.Contains("'audioStreamIndex'", ex.Message, StringComparison.Ordinal);
+        NeverSent();
+    }
+
+    [Fact]
+    public async Task Play_IndexOfWrongType_IsError()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"subtitleStreamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'subtitleStreamIndex': no subtitle track with index 1", ex.Message);
+        NeverSent();
+    }
+
+    [Fact]
+    public async Task Play_UnknownIndex_IsError()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"audioStreamIndex":9}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'audioStreamIndex': no audio track with index 9", ex.Message);
+        NeverSent();
+    }
+
+    [Fact]
+    public async Task Play_TrackOnNonVideo_IsError()
+    {
+        AddSession("mine", _user.Id);
+        var series = new Series { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(series.Id, _user)).Returns(series);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{series.Id}}"],"audioStreamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'audioStreamIndex': the item has no selectable tracks", ex.Message);
+        NeverSent();
+    }
+
+    [Theory]
+    [InlineData(true, "now")]
+    [InlineData(false, "next")]
+    [InlineData(false, "last")]
+    public async Task Play_TrackWithSeveralItemsOrQueueMode_IsError(bool twoItems, string mode)
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var ids = twoItems ? $"\"{movie.Id}\",\"{movie.Id}\"" : $"\"{movie.Id}\"";
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":[{{ids}}],"mode":"{{mode}}","audioStreamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'audioStreamIndex': only allowed when playing one item now", ex.Message);
+        NeverSent();
+    }
+
+    [Fact]
+    public async Task Play_WithoutTracks_Unchanged()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var sent = CapturePlay();
+
+        var result = await Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"]}"""), _principal, CancellationToken.None);
+
+        Assert.Null(sent()!.AudioStreamIndex);
+        Assert.Null(sent()!.SubtitleStreamIndex);
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.False(doc.RootElement.TryGetProperty("audioStreamIndex", out _));
+        Assert.False(doc.RootElement.TryGetProperty("subtitleStreamIndex", out _));
+        _mediaSources.Verify(m => m.GetMediaStreams(It.IsAny<Guid>()), Times.Never);
     }
 }

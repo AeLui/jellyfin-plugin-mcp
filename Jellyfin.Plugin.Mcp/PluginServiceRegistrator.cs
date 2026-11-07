@@ -44,6 +44,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<OriginPolicy>();
         serviceCollection.AddSingleton<ItemLookup>();
         serviceCollection.AddSingleton<SessionResolver>();
+        serviceCollection.AddSingleton<TrackValidator>();
         serviceCollection.AddSingleton<PlaylistResolver>();
 
         foreach (var toolType in typeof(PluginServiceRegistrator).Assembly.GetTypes()

@@ -8,6 +8,7 @@ using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Session;
 
 namespace Jellyfin.Plugin.Mcp.Tools.Playback;
@@ -20,15 +21,17 @@ public sealed class PlayTool : PlaybackToolBase
     private const int MaxItems = 100;
 
     private static readonly JsonElement Schema = JsonDocument.Parse(
-        """{"type":"object","properties":{"sessionId":{"type":"string","description":"Session id from jellyfin_list_sessions."},"itemIds":{"type":"array","items":{"type":"string"},"minItems":1,"description":"Item ids (GUIDs) to play."},"mode":{"type":"string","enum":["now","next","last"],"description":"Play now (default), play next or add to the end of the queue."},"startPositionMinutes":{"type":"integer","minimum":0,"description":"Where to start, in minutes."}},"required":["sessionId","itemIds"]}""").RootElement.Clone();
+        """{"type":"object","properties":{"sessionId":{"type":"string","description":"Session id from jellyfin_list_sessions."},"itemIds":{"type":"array","items":{"type":"string"},"minItems":1,"description":"Item ids (GUIDs) to play."},"mode":{"type":"string","enum":["now","next","last"],"description":"Play now (default), play next or add to the end of the queue."},"startPositionMinutes":{"type":"integer","minimum":0,"description":"Where to start, in minutes."},"audioStreamIndex":{"type":"integer","minimum":0,"description":"Audio track index from jellyfin_get_media_tracks; only with one item and mode now."},"subtitleStreamIndex":{"type":"integer","minimum":-1,"description":"Subtitle track index from jellyfin_get_media_tracks, or -1 for no subtitles; only with one item and mode now."}},"required":["sessionId","itemIds"]}""").RootElement.Clone();
 
     private static readonly JsonElement ResultSchema = OutputSchemas.Object(
-        "\"sessionId\":{\"type\":\"string\"},\"mode\":{\"type\":\"string\",\"enum\":[\"now\",\"next\",\"last\"]},\"itemCount\":{\"type\":\"integer\"}",
+        "\"sessionId\":{\"type\":\"string\"},\"mode\":{\"type\":\"string\",\"enum\":[\"now\",\"next\",\"last\"]},\"itemCount\":{\"type\":\"integer\"},"
+            + "\"audioStreamIndex\":{\"type\":\"integer\"},\"subtitleStreamIndex\":{\"type\":\"integer\"}",
         "sessionId",
         "mode",
         "itemCount");
 
     private readonly ItemLookup _lookup;
+    private readonly TrackValidator _tracks;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlayTool"/> class.
@@ -38,10 +41,12 @@ public sealed class PlayTool : PlaybackToolBase
     /// <param name="sessions">The session resolver.</param>
     /// <param name="sessionManager">The session manager.</param>
     /// <param name="lookup">The visibility-checked item lookup.</param>
-    public PlayTool(IUserManager userManager, IPluginSettings settings, SessionResolver sessions, ISessionManager sessionManager, ItemLookup lookup)
+    /// <param name="tracks">The audio and subtitle track validator.</param>
+    public PlayTool(IUserManager userManager, IPluginSettings settings, SessionResolver sessions, ISessionManager sessionManager, ItemLookup lookup, TrackValidator tracks)
         : base(userManager, settings, sessions, sessionManager)
     {
         _lookup = lookup;
+        _tracks = tracks;
     }
 
     private enum PlayMode
@@ -58,7 +63,7 @@ public sealed class PlayTool : PlaybackToolBase
     public override string Title => "Play on device";
 
     /// <inheritdoc />
-    public override string Description => "Play items on one of your sessions (now, next or at the end of the queue).";
+    public override string Description => "Play items on one of your sessions (now, next or at the end of the queue), optionally with chosen audio and subtitle tracks.";
 
     /// <inheritdoc />
     public override JsonElement InputSchema => Schema;
@@ -92,11 +97,20 @@ public sealed class PlayTool : PlaybackToolBase
             throw new ToolException("Invalid argument 'startPositionMinutes': must not be negative");
         }
 
+        var audioIndex = args.GetInt("audioStreamIndex");
+        var subtitleIndex = args.GetInt("subtitleStreamIndex");
+        CheckTrackArguments(audioIndex, subtitleIndex, ids.Count, mode);
         var session = Sessions.Resolve(principal, sessionId);
         var user = GetUser(principal);
-        foreach (var id in ids)
+        var items = ids.Select(id => _lookup.GetVisible(user, id)).ToList();
+        if (audioIndex is not null)
         {
-            _lookup.GetVisible(user, id);
+            _tracks.Validate(items[0], MediaStreamType.Audio, audioIndex.Value, "audioStreamIndex");
+        }
+
+        if (subtitleIndex is not null)
+        {
+            _tracks.Validate(items[0], MediaStreamType.Subtitle, subtitleIndex.Value, "subtitleStreamIndex");
         }
 
         var request = new PlayRequest
@@ -109,8 +123,39 @@ public sealed class PlayTool : PlaybackToolBase
                 _ => PlayCommand.PlayNow,
             },
             StartPositionTicks = startMinutes is null ? null : startMinutes.Value * TimeSpan.TicksPerMinute,
+            AudioStreamIndex = audioIndex,
+            SubtitleStreamIndex = subtitleIndex,
         };
         await SendAsync(() => SessionManager.SendPlayCommand(ControllingSessionId, session.Id, request, ct), isPlay: true).ConfigureAwait(false);
-        return ToolResult.Json(new { sessionId = session.Id, mode = mode.ToString().ToLowerInvariant(), itemCount = ids.Count });
+        return ToolResult.Json(new
+        {
+            sessionId = session.Id,
+            mode = mode.ToString().ToLowerInvariant(),
+            itemCount = ids.Count,
+            audioStreamIndex = audioIndex,
+            subtitleStreamIndex = subtitleIndex,
+        });
+    }
+
+    // Jellyfin applies the stream indexes to the first item it starts, so they only make sense for one item played now.
+    private static void CheckTrackArguments(int? audioIndex, int? subtitleIndex, int itemCount, PlayMode mode)
+    {
+        foreach (var (name, value, minimum) in new[] { ("audioStreamIndex", audioIndex, 0), ("subtitleStreamIndex", subtitleIndex, TrackValidator.SubtitlesOff) })
+        {
+            if (value is null)
+            {
+                continue;
+            }
+
+            if (itemCount != 1 || mode != PlayMode.Now)
+            {
+                throw new ToolException("Invalid argument '" + name + "': only allowed when playing one item now");
+            }
+
+            if (value < minimum)
+            {
+                throw new ToolException(string.Create(CultureInfo.InvariantCulture, $"Invalid argument '{name}': must be at least {minimum}"));
+            }
+        }
     }
 }
