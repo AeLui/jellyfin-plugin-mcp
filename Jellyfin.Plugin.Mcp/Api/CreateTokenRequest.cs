@@ -24,6 +24,12 @@ public sealed class CreateTokenRequest
     public IReadOnlyList<string> Scopes { get; init; } = Array.Empty<string>();
 
     /// <summary>
+    /// Gets the ids of the libraries the token is limited to, or null or empty for every library the user can access.
+    /// A restricted token cannot have the admin scope.
+    /// </summary>
+    public IReadOnlyList<Guid>? LibraryIds { get; init; }
+
+    /// <summary>
     /// Gets the lifetime in days (30, 90 or 365), or null for a token that never expires.
     /// </summary>
     public int? ExpiresInDays { get; init; }
