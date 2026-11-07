@@ -18,6 +18,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -74,7 +75,7 @@ public class PlaybackToolsTests
 
     private PlayTool Play() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object), new TrackValidator(_mediaSources.Object));
 
-    private PlaybackControlTool Control() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
+    private PlaybackControlTool Control() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object), new TrackValidator(_mediaSources.Object));
 
     private SendMessageTool Message() => new(_users.Object, _settings.Object, Resolver(), _sessionManager.Object);
 
@@ -591,5 +592,121 @@ public class PlaybackToolsTests
         Assert.False(doc.RootElement.TryGetProperty("audioStreamIndex", out _));
         Assert.False(doc.RootElement.TryGetProperty("subtitleStreamIndex", out _));
         _mediaSources.Verify(m => m.GetMediaStreams(It.IsAny<Guid>()), Times.Never);
+    }
+
+    private Func<GeneralCommand?> CaptureGeneral()
+    {
+        GeneralCommand? sent = null;
+        _sessionManager.Setup(m => m.SendGeneralCommand(It.IsAny<string>(), "mine", It.IsAny<GeneralCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, GeneralCommand, CancellationToken>((_, _, c, _) => sent = c)
+            .Returns(Task.CompletedTask);
+        return () => sent;
+    }
+
+    private void GeneralNeverSent()
+        => _sessionManager.Verify(m => m.SendGeneralCommand(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<GeneralCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+
+    [Theory]
+    [InlineData("set_audio_track", 2, GeneralCommandType.SetAudioStreamIndex)]
+    [InlineData("set_subtitle_track", 3, GeneralCommandType.SetSubtitleStreamIndex)]
+    [InlineData("set_subtitle_track", -1, GeneralCommandType.SetSubtitleStreamIndex)]
+    public async Task Control_SetTrack_SendsGeneralCommand(string command, int index, GeneralCommandType expected)
+    {
+        var session = AddSession("mine", _user.Id);
+        session.FullNowPlayingItem = MovieWithTracks();
+        var sent = CaptureGeneral();
+        var tool = Control();
+
+        var result = await tool.ExecuteAsync(Args($$"""{"sessionId":"mine","command":"{{command}}","streamIndex":{{index}}}"""), _principal, CancellationToken.None);
+
+        _sessionManager.Verify(m => m.SendGeneralCommand(string.Empty, "mine", It.IsAny<GeneralCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(expected, sent()!.Name);
+        Assert.Equal(index.ToString(System.Globalization.CultureInfo.InvariantCulture), sent()!.Arguments["Index"]);
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(command, doc.RootElement.GetProperty("command").GetString());
+        Assert.Equal(index, doc.RootElement.GetProperty("streamIndex").GetInt32());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task Control_SetSubtitleTrack_AudioIndex_IsError()
+    {
+        var session = AddSession("mine", _user.Id);
+        session.FullNowPlayingItem = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_subtitle_track","streamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'streamIndex': no subtitle track with index 1", ex.Message);
+        GeneralNeverSent();
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_UsesNowPlayingDtoWhenNoFullItem()
+    {
+        var session = AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        session.NowPlayingItem = new BaseItemDto { Id = movie.Id, Name = movie.Name };
+        var sent = CaptureGeneral();
+
+        await Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":2}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(GeneralCommandType.SetAudioStreamIndex, sent()!.Name);
+        _library.Verify(l => l.GetItemById<BaseItem>(movie.Id, _user), Times.Once);
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_NothingPlaying_IsError()
+    {
+        AddSession("mine", _user.Id);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Nothing is playing on this session", ex.Message);
+        GeneralNeverSent();
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_HiddenNowPlaying_IsNotFound()
+    {
+        var session = AddSession("mine", _user.Id);
+        var hidden = new Movie { Id = Guid.NewGuid(), Name = "Hidden" };
+        _library.Setup(l => l.GetItemById<BaseItem>(hidden.Id, _user)).Returns((BaseItem?)null);
+        session.FullNowPlayingItem = hidden;
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        GeneralNeverSent();
+    }
+
+    [Theory]
+    [InlineData("""{"sessionId":"mine","command":"set_audio_track"}""")]
+    [InlineData("""{"sessionId":"mine","command":"set_audio_track","streamIndex":-1}""")]
+    [InlineData("""{"sessionId":"mine","command":"set_subtitle_track","streamIndex":-2}""")]
+    [InlineData("""{"sessionId":"mine","command":"pause","streamIndex":1}""")]
+    [InlineData("""{"sessionId":"mine","command":"set_audio_track","streamIndex":"x"}""")]
+    public async Task Control_StreamIndexArgumentErrors_NameTheArgument(string json)
+    {
+        AddSession("mine", _user.Id).FullNowPlayingItem = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() => Control().ExecuteAsync(Args(json), _principal, CancellationToken.None));
+
+        Assert.Contains("'streamIndex'", ex.Message, StringComparison.Ordinal);
+        GeneralNeverSent();
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_OtherUsersSession_IsNotFound()
+    {
+        AddSession("theirs", Guid.NewGuid()).FullNowPlayingItem = MovieWithTracks();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"theirs","command":"set_audio_track","streamIndex":1}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Session not found", ex.Message);
+        GeneralNeverSent();
     }
 }
