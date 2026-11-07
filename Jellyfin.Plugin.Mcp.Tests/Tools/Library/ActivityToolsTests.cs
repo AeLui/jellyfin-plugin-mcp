@@ -187,6 +187,28 @@ public class ActivityToolsTests
     }
 
     [Fact]
+    public async Task RecentlyAdded_ItemsHaveDateAdded_AndConformToSchema()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat", DateCreated = new DateTime(2026, 11, 1, 8, 30, 0, DateTimeKind.Utc) };
+        _library.Setup(l => l.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>(0, 1, new BaseItem[] { movie }));
+
+        var result = await Run(Recent(), "{}");
+
+        var item = Assert.Single(result.Structured!.Value.GetProperty("items").EnumerateArray());
+        Assert.Equal("2026-11-01T08:30:00.0000000Z", item.GetProperty("dateAdded").GetString());
+        SchemaAssert.Conforms(Recent(), result);
+    }
+
+    [Fact]
+    public void RecentlyAdded_OutputSchemaDeclaresDateAdded()
+    {
+        var properties = Recent().OutputSchema!.Value.GetProperty("properties").GetProperty("items").GetProperty("items").GetProperty("properties");
+
+        Assert.True(properties.TryGetProperty("dateAdded", out _));
+    }
+
+    [Fact]
     public async Task RecentlyAdded_WithoutLibrary_LeavesScopingToUserAccess()
     {
         await Run(Recent(), "{}");

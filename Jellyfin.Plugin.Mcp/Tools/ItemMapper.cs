@@ -23,6 +23,19 @@ public static class ItemMapper
         => BuildSummary(item, data);
 
     /// <summary>
+    /// Maps a recently added item to its summary shape plus the date it was added.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="data">The user's data for the item, if any.</param>
+    /// <returns>The summary with a <c>dateAdded</c> field.</returns>
+    public static object Recent(BaseItem item, UserItemData? data)
+    {
+        var result = BuildSummary(item, data);
+        Add(result, "dateAdded", Utc(item.DateCreated));
+        return result;
+    }
+
+    /// <summary>
     /// Maps a playlist entry to its summary shape, prefixed with the id used to remove the entry.
     /// </summary>
     /// <param name="entryId">The playlist entry id, if the entry has one.</param>

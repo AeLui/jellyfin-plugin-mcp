@@ -32,6 +32,18 @@ public class ItemMapperTests
     }
 
     [Fact]
+    public void Recent_AddsDateAddedAsUtc()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Heat", DateCreated = new DateTime(2026, 11, 1, 8, 30, 0, DateTimeKind.Unspecified) };
+
+        var json = Serialize(ItemMapper.Recent(movie, new UserItemData { Key = "k", Played = true }));
+
+        Assert.Equal("2026-11-01T08:30:00.0000000Z", json.GetProperty("dateAdded").GetString());
+        Assert.Equal("Heat", json.GetProperty("name").GetString());
+        Assert.True(json.GetProperty("played").GetBoolean());
+    }
+
+    [Fact]
     public void ItemMapper_Summary_IncludesEpisodeAndUserData()
     {
         var episode = new Episode { Id = Guid.NewGuid(), Name = "Pilot", SeriesName = "Lost", ParentIndexNumber = 1, IndexNumber = 2, ProductionYear = 2004 };

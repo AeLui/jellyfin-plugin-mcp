@@ -145,7 +145,7 @@ List the media libraries the user can access, with their ids and collection type
 
 ### jellyfin_recently_added
 
-List the most recently added items, newest first. Episodes are listed individually, so a freshly added season shows up as many entries; folders are never returned.
+List the most recently added items, newest first. Episodes are listed individually, so a freshly added season shows up as many entries; folders are never returned. Each item also has `dateAdded` (ISO 8601 UTC), the time Jellyfin added it.
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
@@ -157,7 +157,7 @@ List the most recently added items, newest first. Episodes are listed individual
 {"name":"jellyfin_recently_added","arguments":{"types":["movie"],"limit":1}}
 ```
 ```json
-{"totalCount":412,"items":[{"id":"...","name":"Dune: Part Two","type":"movie","year":2024}]}
+{"totalCount":412,"items":[{"id":"...","name":"Dune: Part Two","type":"movie","year":2024,"dateAdded":"2026-11-01T08:30:00.0000000Z"}]}
 ```
 
 ### jellyfin_next_up

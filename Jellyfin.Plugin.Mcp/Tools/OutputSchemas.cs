@@ -70,6 +70,17 @@ internal static class OutputSchemas
         "items");
 
     /// <summary>
+    /// Gets the schema of a page of recently added items (item summaries with <c>dateAdded</c>).
+    /// </summary>
+    public static JsonElement RecentItemPage { get; } = Object(
+        "\"totalCount\":{\"type\":\"integer\"},\"items\":" + ArrayOf(ObjectJson(
+            SummaryProperties + ",\"dateAdded\":{\"type\":\"string\",\"description\":\"ISO 8601 UTC timestamp of when the item was added.\"}",
+            "id",
+            "type")),
+        "totalCount",
+        "items");
+
+    /// <summary>
     /// Gets the schema of a paged list of collection summaries with their visible child counts.
     /// </summary>
     public static JsonElement CollectionPage { get; } = Object(

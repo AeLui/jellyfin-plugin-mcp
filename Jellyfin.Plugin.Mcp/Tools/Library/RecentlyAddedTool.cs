@@ -66,7 +66,7 @@ public sealed class RecentlyAddedTool : LibraryToolBase
     public override JsonElement InputSchema => Schema;
 
     /// <inheritdoc />
-    public override JsonElement? OutputSchema => OutputSchemas.ItemPage;
+    public override JsonElement? OutputSchema => OutputSchemas.RecentItemPage;
 
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
@@ -96,6 +96,11 @@ public sealed class RecentlyAddedTool : LibraryToolBase
         }
 
         var result = _libraryManager.GetVisibleItemsResult(query);
-        return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
+        var page = new
+        {
+            totalCount = result.TotalRecordCount,
+            items = result.Items.Select(i => ItemMapper.Recent(i, UserDataManager.GetUserData(user, i))).ToList(),
+        };
+        return Task.FromResult(ToolResult.Json(page));
     }
 }
