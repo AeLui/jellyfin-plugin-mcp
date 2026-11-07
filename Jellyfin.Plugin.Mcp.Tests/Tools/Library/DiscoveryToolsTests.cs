@@ -17,6 +17,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Dto;
 using Moq;
 using Xunit;
 
@@ -175,6 +176,118 @@ public class DiscoveryToolsTests
     public async Task SimilarItems_MalformedArguments_NameTheArgument(string json, string expected)
     {
         var ex = await Assert.ThrowsAsync<ToolException>(() => Similar().ExecuteAsync(Args(json), _principal, CancellationToken.None));
+
+        Assert.Contains(expected, ex.Message, StringComparison.Ordinal);
+    }
+
+    private MovieRecommendationsTool Recommendations() => new(_users.Object, _settings.Object, _userData.Object, Lookup(), _similar.Object);
+
+    private void RecommendationsReturn(params SimilarItemsRecommendation[] categories)
+        => _similar.Setup(s => s.GetMovieRecommendationsAsync(It.IsAny<User?>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DtoOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(categories);
+
+    private static SimilarItemsRecommendation Category(RecommendationType type, string baseline, params BaseItem[] items)
+        => new() { RecommendationType = type, BaselineItemName = baseline, CategoryId = Guid.NewGuid(), Items = items };
+
+    [Fact]
+    public async Task MovieRecommendations_PassesDefaults()
+    {
+        RecommendationsReturn();
+
+        await Recommendations().ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        _similar.Verify(s => s.GetMovieRecommendationsAsync(_user, Guid.Empty, 5, 8, It.IsAny<DtoOptions>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_ClampsLimits()
+    {
+        RecommendationsReturn();
+
+        await Recommendations().ExecuteAsync(Args("""{"categoryLimit":50,"itemsPerCategory":0}"""), _principal, CancellationToken.None);
+
+        _similar.Verify(s => s.GetMovieRecommendationsAsync(_user, Guid.Empty, 10, 1, It.IsAny<DtoOptions>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_ValidLibrary_PassesParentId()
+    {
+        var library = new CollectionFolder { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(library.Id, _user)).Returns(library);
+        RecommendationsReturn();
+
+        await Recommendations().ExecuteAsync(Args($$"""{"libraryId":"{{library.Id}}"}"""), _principal, CancellationToken.None);
+
+        _similar.Verify(s => s.GetMovieRecommendationsAsync(_user, library.Id, 5, 8, It.IsAny<DtoOptions>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_InvalidLibrary_IsNotFound()
+    {
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemById<BaseItem>(episode.Id, _user)).Returns(episode);
+
+        var ex = await Assert.ThrowsAsync<ToolException>(
+            () => Recommendations().ExecuteAsync(Args($$"""{"libraryId":"{{episode.Id}}"}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        _similar.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_MapsCategories()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Night Signal" };
+        RecommendationsReturn(Category(RecommendationType.HasDirectorFromRecentlyPlayed, "Jane Doe", movie));
+        var tool = Recommendations();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var category = Assert.Single(doc.RootElement.GetProperty("categories").EnumerateArray());
+        Assert.Equal("has_director_from_recently_played", category.GetProperty("reason").GetString());
+        Assert.Equal("Jane Doe", category.GetProperty("baseline").GetString());
+        Assert.Equal("Night Signal", Assert.Single(category.GetProperty("items").EnumerateArray()).GetProperty("name").GetString());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_DropsEmptyCategoriesAndNullBaseline()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Night Signal" };
+        RecommendationsReturn(
+            Category(RecommendationType.SimilarToLikedItem, "Hidden only", new Fakes.BoxSet { Id = Guid.NewGuid(), Visible = false }),
+            Category(RecommendationType.SimilarToRecentlyPlayed, null!, movie));
+        var tool = Recommendations();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var category = Assert.Single(doc.RootElement.GetProperty("categories").EnumerateArray());
+        Assert.Equal("similar_to_recently_played", category.GetProperty("reason").GetString());
+        Assert.False(category.TryGetProperty("baseline", out _));
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task MovieRecommendations_Empty_Conforms()
+    {
+        RecommendationsReturn();
+        var tool = Recommendations();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        Assert.Equal("""{"categories":[]}""", result.Text);
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Theory]
+    [InlineData("""{"libraryId":"nope"}""", "'libraryId'")]
+    [InlineData("""{"categoryLimit":"x"}""", "'categoryLimit'")]
+    [InlineData("""{"itemsPerCategory":"x"}""", "'itemsPerCategory'")]
+    public async Task MovieRecommendations_MalformedArguments_NameTheArgument(string json, string expected)
+    {
+        var ex = await Assert.ThrowsAsync<ToolException>(() => Recommendations().ExecuteAsync(Args(json), _principal, CancellationToken.None));
 
         Assert.Contains(expected, ex.Message, StringComparison.Ordinal);
     }

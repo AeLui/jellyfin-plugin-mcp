@@ -192,15 +192,15 @@ public class McpControllerTests
     }
 
     [Fact]
-    public void Registrator_RegistersExactly23Tools()
+    public void Registrator_RegistersExactly24Tools()
     {
         var services = new ServiceCollection();
         new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
 
         var tools = services.Where(d => d.ServiceType == typeof(IMcpTool)).Select(d => d.ImplementationType!).ToList();
 
-        Assert.Equal(23, tools.Count);
-        Assert.Equal(23, tools.Distinct().Count());
+        Assert.Equal(24, tools.Count);
+        Assert.Equal(24, tools.Distinct().Count());
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public class McpControllerTests
 
         var tools = scope.ServiceProvider.GetServices<IMcpTool>().ToList();
 
-        Assert.Equal(23, tools.Count);
-        Assert.Equal(23, tools.Select(t => t.Title).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(24, tools.Count);
+        Assert.Equal(24, tools.Select(t => t.Title).Distinct(StringComparer.Ordinal).Count());
         foreach (var tool in tools)
         {
             Assert.False(string.IsNullOrWhiteSpace(tool.Title), tool.Name);
