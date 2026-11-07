@@ -57,7 +57,8 @@ public sealed class ContinueWatchingTool : LibraryToolBase
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
 
         // No ParentId/ItemIds: ILibraryManager scopes the query to the libraries the user may access.
         var query = new InternalItemsQuery(user)
@@ -71,7 +72,7 @@ public sealed class ContinueWatchingTool : LibraryToolBase
             OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.DatePlayed, SortOrder.Descending) },
         };
 
-        var result = _libraryManager.GetVisibleItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query, scope);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 }

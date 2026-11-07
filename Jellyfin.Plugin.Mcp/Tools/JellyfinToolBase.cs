@@ -75,4 +75,14 @@ public abstract class JellyfinToolBase : IMcpTool
         ArgumentNullException.ThrowIfNull(principal);
         return UserManager.GetUserById(principal.UserId) ?? throw new ToolException("User not found");
     }
+
+    /// <summary>
+    /// Resolves the Jellyfin user of the caller together with the token's library restriction. Every item lookup and
+    /// query goes through this scope.
+    /// </summary>
+    /// <param name="principal">The caller.</param>
+    /// <returns>The scoped user.</returns>
+    /// <exception cref="ToolException">The user no longer exists.</exception>
+    protected ScopedUser GetScopedUser(McpPrincipal principal)
+        => new(GetUser(principal), principal.LibraryIds);
 }

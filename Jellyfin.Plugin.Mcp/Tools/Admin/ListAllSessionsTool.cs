@@ -82,7 +82,7 @@ public sealed class ListAllSessionsTool : AdminToolBase
     {
         ArgumentNullException.ThrowIfNull(args);
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var user = GetScopedUser(principal);
         var active = _sessionManager.Sessions
             .Where(s => s.IsActive)
             .OrderByDescending(s => s.LastActivityDate)
@@ -92,7 +92,7 @@ public sealed class ListAllSessionsTool : AdminToolBase
     }
 
     // The client IP (RemoteEndPoint) is deliberately not returned.
-    private Dictionary<string, object> Map(SessionInfo session, User user)
+    private Dictionary<string, object> Map(SessionInfo session, ScopedUser user)
     {
         var result = new Dictionary<string, object> { ["sessionId"] = session.Id };
         AddText(result, "userName", session.UserName);

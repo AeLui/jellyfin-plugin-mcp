@@ -66,8 +66,9 @@ public sealed class SimilarItemsTool : LibraryToolBase
         ArgumentNullException.ThrowIfNull(args);
         var id = args.GetRequiredGuid("itemId");
         var limit = Math.Clamp(args.GetInt("limit") ?? DefaultLimit, 1, MaxPageSize);
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, id);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
+        var item = _lookup.GetVisible(scope, id);
         if (item is Episode)
         {
             throw new ToolException("Similar items are not available for episodes; use the series id");
@@ -79,15 +80,16 @@ public sealed class SimilarItemsTool : LibraryToolBase
         }
 
         // Same call as LibraryController.GetSimilarItems (v12.4); the manager filters results by the user's library access.
+        // A library-restricted token drops results from other libraries, so it asks for a larger pool first.
         var similar = await _similarItems.GetSimilarItemsAsync(
             item,
             Array.Empty<Guid>(),
             user,
             new DtoOptions(false),
-            limit,
+            scope.IsRestricted ? Math.Max(limit, MaxPageSize) : limit,
             _libraryManager.GetLibraryOptions(item),
             ct).ConfigureAwait(false);
-        var visible = similar.Where(i => VisibleItems.IsVisible(i, user)).ToList();
+        var visible = similar.Where(i => VisibleItems.IsVisible(_lookup, i, scope)).Take(limit).ToList();
         return ToolResult.Json(Page(user, visible.Count, visible));
     }
 }

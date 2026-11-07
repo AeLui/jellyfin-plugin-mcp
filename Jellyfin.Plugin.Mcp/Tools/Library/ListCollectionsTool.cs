@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
-using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
@@ -65,7 +64,8 @@ public sealed class ListCollectionsTool : LibraryToolBase
         ArgumentNullException.ThrowIfNull(args);
         var itemId = args.GetGuid("itemId");
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
         int totalCount;
         IReadOnlyList<BaseItem> page;
         if (itemId is null)
@@ -79,26 +79,27 @@ public sealed class ListCollectionsTool : LibraryToolBase
                 EnableTotalRecordCount = true,
                 OrderBy = new List<(ItemSortBy, SortOrder)> { (ItemSortBy.SortName, SortOrder.Ascending) },
             };
-            var result = _libraryManager.GetVisibleItemsResult(query);
+            var result = _libraryManager.GetVisibleItemsResult(query, scope);
             totalCount = result.TotalRecordCount;
             page = result.Items;
         }
         else
         {
-            _lookup.GetVisible(user, itemId.Value);
+            _lookup.GetVisible(scope, itemId.Value);
             var visible = _collectionManager.GetCollectionsContainingItem(user, itemId.Value)
-                .Where(c => VisibleItems.IsVisible(c, user))
+                .Where(c => VisibleItems.IsVisible(_lookup, c, scope))
                 .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             totalCount = visible.Count;
             page = visible.Skip(startIndex).Take(limit).ToList<BaseItem>();
         }
 
-        var items = page.Select(c => ItemMapper.Collection(c, UserDataManager.GetUserData(user, c), ChildCount(c, user))).ToList();
+        var items = page.Select(c => ItemMapper.Collection(c, UserDataManager.GetUserData(user, c), ChildCount(c, scope))).ToList();
         return Task.FromResult(ToolResult.Json(new { totalCount, items }));
     }
 
-    // BoxSet filters its linked children per user (v12.4 BoxSet.FilterLinkedChildrenPerUser), so this counts what the user can open.
-    private static int ChildCount(BaseItem collection, User user)
-        => collection is Folder folder ? folder.GetChildren(user, true, new InternalItemsQuery(user)).Count : 0;
+    // BoxSet filters its linked children per user (v12.4 BoxSet.FilterLinkedChildrenPerUser), so this counts what the user can
+    // open; a library-restricted token only counts the entries of its libraries.
+    private int ChildCount(BaseItem collection, ScopedUser scope)
+        => collection is Folder folder ? _lookup.VisibleChildren(scope, folder).Count : 0;
 }

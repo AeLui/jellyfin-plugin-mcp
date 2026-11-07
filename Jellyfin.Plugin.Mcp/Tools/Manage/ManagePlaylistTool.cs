@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Playlists;
 using MediaBrowser.Model.Playlists;
@@ -89,7 +91,7 @@ public sealed class ManagePlaylistTool : ManageToolBase
     {
         ArgumentNullException.ThrowIfNull(args);
         var action = args.GetEnum<PlaylistAction>("action") ?? throw new ToolException("Invalid argument 'action': is required");
-        var user = GetUser(principal);
+        var user = GetScopedUser(principal);
         return action switch
         {
             PlaylistAction.Create => await CreateAsync(args, user).ConfigureAwait(false),
@@ -108,7 +110,7 @@ public sealed class ManagePlaylistTool : ManageToolBase
     private static ToolException Invalid(string name, string reason)
         => new(string.Create(CultureInfo.InvariantCulture, $"Invalid argument '{name}': {reason}"));
 
-    private IReadOnlyList<Guid> VisibleItemIds(ToolArguments args, User user, bool required)
+    private IReadOnlyList<Guid> VisibleItemIds(ToolArguments args, ScopedUser user, bool required)
     {
         var ids = args.GetGuidArray("itemIds");
         if (required && ids.Count == 0)
@@ -121,12 +123,13 @@ public sealed class ManagePlaylistTool : ManageToolBase
             throw Invalid("itemIds", string.Create(CultureInfo.InvariantCulture, $"at most {MaxItems} ids"));
         }
 
-        foreach (var id in ids)
-        {
-            _lookup.GetVisible(user, id);
-        }
+        var items = ids.Select(id => _lookup.GetVisible(user, id)).ToList();
 
-        return ids;
+        // Jellyfin adds the entries of a playlist or collection, from every library; a library-restricted token adds the
+        // visible entries instead.
+        return user.IsRestricted
+            ? items.SelectMany(i => i is Playlist or BoxSet ? _lookup.VisibleChildren(user, (Folder)i) : [i]).Select(i => i.Id).ToList()
+            : ids;
     }
 
     private static string Variant(string action, string? extraProperty, string? extraRequired)
@@ -138,7 +141,7 @@ public sealed class ManagePlaylistTool : ManageToolBase
             : OutputSchemas.ObjectJson(properties, "action", "playlistId", extraRequired);
     }
 
-    private async Task<ToolResult> CreateAsync(ToolArguments args, User user)
+    private async Task<ToolResult> CreateAsync(ToolArguments args, ScopedUser user)
     {
         var name = RequiredName(args);
         var ids = VisibleItemIds(args, user, required: false);
@@ -148,7 +151,7 @@ public sealed class ManagePlaylistTool : ManageToolBase
             {
                 Name = name,
                 ItemIdList = ids,
-                UserId = user.Id,
+                UserId = user.User.Id,
                 Users = [],
                 Public = false,
             }).ConfigureAwait(false),
@@ -156,15 +159,15 @@ public sealed class ManagePlaylistTool : ManageToolBase
         return ToolResult.Json(new { action = "create", playlistId = created?.Id, name });
     }
 
-    private async Task<ToolResult> AddItemsAsync(ToolArguments args, User user)
+    private async Task<ToolResult> AddItemsAsync(ToolArguments args, ScopedUser user)
     {
         var playlist = _resolver.GetEditable(user, args.GetRequiredGuid("playlistId"));
         var ids = VisibleItemIds(args, user, required: true);
-        await RunAsync(() => _playlistManager.AddItemToPlaylistAsync(playlist.Id, ids.ToArray(), null, user.Id), Failed).ConfigureAwait(false);
+        await RunAsync(() => _playlistManager.AddItemToPlaylistAsync(playlist.Id, ids.ToArray(), null, user.User.Id), Failed).ConfigureAwait(false);
         return ToolResult.Json(new { action = "add_items", playlistId = Format(playlist.Id), requestedCount = ids.Count });
     }
 
-    private async Task<ToolResult> RemoveItemsAsync(ToolArguments args, User user)
+    private async Task<ToolResult> RemoveItemsAsync(ToolArguments args, ScopedUser user)
     {
         var playlist = _resolver.GetEditable(user, args.GetRequiredGuid("playlistId"));
         var requested = args.GetGuidArray("entryIds").Select(Format).Distinct(StringComparer.Ordinal).ToList();
@@ -180,7 +183,7 @@ public sealed class ManagePlaylistTool : ManageToolBase
 
         // Only entries the user can see may be removed, so hidden items are not probed through this tool.
         var known = playlist.GetManageableItems()
-            .Where(e => e.Item2.IsVisible(user))
+            .Where(e => e.Item2.IsVisible(user.User) && _lookup.IsAllowed(user, e.Item2))
             .Select(e => PlaylistResolver.EntryId(e.Item1))
             .ToHashSet(StringComparer.Ordinal);
         if (requested.Any(e => !known.Contains(e)))
@@ -192,24 +195,24 @@ public sealed class ManagePlaylistTool : ManageToolBase
         return ToolResult.Json(new { action = "remove_items", playlistId = Format(playlist.Id), removedCount = requested.Count });
     }
 
-    private async Task<ToolResult> RenameAsync(ToolArguments args, User user)
+    private async Task<ToolResult> RenameAsync(ToolArguments args, ScopedUser user)
     {
         var playlist = _resolver.GetEditable(user, args.GetRequiredGuid("playlistId"));
         var name = RequiredName(args);
 
         // Only the name is set; null Ids/Users/Public leave items, shares and visibility untouched.
         await RunAsync(
-            () => _playlistManager.UpdatePlaylist(new PlaylistUpdateRequest { Id = playlist.Id, UserId = user.Id, Name = name }),
+            () => _playlistManager.UpdatePlaylist(new PlaylistUpdateRequest { Id = playlist.Id, UserId = user.User.Id, Name = name }),
             Failed).ConfigureAwait(false);
         return ToolResult.Json(new { action = "rename", playlistId = Format(playlist.Id), name });
     }
 
-    private async Task<ToolResult> DeleteAsync(ToolArguments args, User user)
+    private async Task<ToolResult> DeleteAsync(ToolArguments args, ScopedUser user)
     {
         var playlist = _resolver.GetOwned(user, args.GetRequiredGuid("playlistId"));
 
         // Same authorization LibraryController.DeleteItem applies, on top of the ownership check.
-        if (!playlist.CanDelete(user))
+        if (!playlist.CanDelete(user.User))
         {
             throw new ToolException(PlaylistResolver.NotFound);
         }

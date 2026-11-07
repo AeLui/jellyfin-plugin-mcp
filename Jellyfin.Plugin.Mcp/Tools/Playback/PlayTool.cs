@@ -6,7 +6,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Playlists;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Session;
@@ -101,8 +104,8 @@ public sealed class PlayTool : PlaybackToolBase
         var subtitleIndex = args.GetInt("subtitleStreamIndex");
         CheckTrackArguments(audioIndex, subtitleIndex, ids.Count, mode);
         var session = Sessions.Resolve(principal, sessionId);
-        var user = GetUser(principal);
-        var items = ids.Select(id => _lookup.GetVisible(user, id)).ToList();
+        var scope = GetScopedUser(principal);
+        var items = ids.Select(id => _lookup.GetVisible(scope, id)).ToList();
         if (audioIndex is not null)
         {
             _tracks.Validate(items[0], MediaStreamType.Audio, audioIndex.Value, "audioStreamIndex");
@@ -113,9 +116,19 @@ public sealed class PlayTool : PlaybackToolBase
             _tracks.Validate(items[0], MediaStreamType.Subtitle, subtitleIndex.Value, "subtitleStreamIndex");
         }
 
+        // Clients expand a playlist or collection themselves, entries from every library included; a library-restricted
+        // token sends the visible entries instead.
+        var playIds = scope.IsRestricted
+            ? items.SelectMany(i => i is Playlist or BoxSet ? _lookup.VisibleChildren(scope, (Folder)i) : [i]).Select(i => i.Id).ToArray()
+            : ids.ToArray();
+        if (playIds.Length == 0)
+        {
+            throw new ToolException("Nothing to play");
+        }
+
         var request = new PlayRequest
         {
-            ItemIds = ids.ToArray(),
+            ItemIds = playIds,
             PlayCommand = mode switch
             {
                 PlayMode.Next => PlayCommand.PlayNext,
@@ -134,7 +147,7 @@ public sealed class PlayTool : PlaybackToolBase
         {
             sessionId = session.Id,
             mode = mode.ToString().ToLowerInvariant(),
-            itemCount = ids.Count,
+            itemCount = playIds.Length,
             audioStreamIndex = audioIndex,
             subtitleStreamIndex = subtitleIndex,
         });

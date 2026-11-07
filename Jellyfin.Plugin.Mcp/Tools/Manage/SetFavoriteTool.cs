@@ -60,8 +60,9 @@ public sealed class SetFavoriteTool : ManageToolBase
         ArgumentNullException.ThrowIfNull(args);
         var id = args.GetRequiredGuid("itemId");
         var favorite = args.GetBool("favorite") ?? throw new ToolException("Invalid argument 'favorite': is required");
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, id);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
+        var item = _lookup.GetVisible(scope, id);
 
         // The same calls UserLibraryController makes.
         var data = _userDataManager.GetUserData(user, item) ?? throw new ToolException("Item not found");

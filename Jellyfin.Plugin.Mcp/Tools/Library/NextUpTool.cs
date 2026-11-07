@@ -1,9 +1,14 @@
+using System;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Dto;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.TV;
@@ -62,8 +67,9 @@ public sealed class NextUpTool : LibraryToolBase
     {
         var seriesId = args.GetGuid("seriesId");
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
-        if (seriesId is not null && _lookup.GetVisible(user, seriesId.Value) is not Series)
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
+        if (seriesId is not null && _lookup.GetVisible(scope, seriesId.Value) is not Series)
         {
             throw new ToolException("Invalid argument 'seriesId': item is not a series");
         }
@@ -77,7 +83,28 @@ public sealed class NextUpTool : LibraryToolBase
             Limit = limit,
         };
 
-        var result = _tvSeriesManager.GetNextUp(query, new DtoOptions());
-        return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
+        if (!scope.IsRestricted)
+        {
+            var result = _tvSeriesManager.GetNextUp(query, new DtoOptions());
+            return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
+        }
+
+        // A library-restricted token walks only its allowed libraries, minus the ones the user hides from next up, as the
+        // default overload does for all of them (TVSeriesManager.GetNextUp, v12.4). An empty parent list would match nothing
+        // useful, so it returns nothing at once. The result is checked again and paged here, so the count is exact.
+        var excluded = user.GetPreferenceValues<Guid>(PreferenceKind.LatestItemExcludes);
+        var parents = _lookup.AllowedLibraries(scope).Where(l => !excluded.Contains(l.Id)).ToArray<BaseItem>();
+        if (seriesId is null && parents.Length == 0)
+        {
+            return Task.FromResult(ToolResult.Json(Page(user, 0, [])));
+        }
+
+        query.StartIndex = null;
+        query.Limit = null;
+        var found = seriesId is null
+            ? _tvSeriesManager.GetNextUp(query, parents, new DtoOptions())
+            : _tvSeriesManager.GetNextUp(query, new DtoOptions());
+        var visible = found.Items.Where(i => _lookup.IsAllowed(scope, i)).ToList();
+        return Task.FromResult(ToolResult.Json(Page(user, visible.Count, visible.Skip(startIndex).Take(limit))));
     }
 }

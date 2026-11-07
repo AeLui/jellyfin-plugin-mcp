@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +8,9 @@ using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Playlists;
 using MediaBrowser.Model.Entities;
 
 namespace Jellyfin.Plugin.Mcp.Tools.Library;
@@ -90,8 +93,9 @@ public sealed class BrowseTool : LibraryToolBase
         var direction = args.GetEnum<SortDirection>("sortOrder") ?? SortDirection.Asc;
         var filter = args.GetEnum<BrowseFilter>("filter") ?? BrowseFilter.All;
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
-        var parent = _lookup.GetVisibleContainer(user, parentId);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
+        var parent = _lookup.GetVisibleContainer(scope, parentId);
 
         var sortField = sortBy switch
         {
@@ -139,6 +143,16 @@ public sealed class BrowseTool : LibraryToolBase
         // children with GetLinkedChildren(user) (Playlist and BoxSet override IsVisible with owner/share/library rules),
         // and the Playlist/BoxSet type queries run through QueryWithPostFiltering (IsVisibleStandalone(user)). So no extra
         // VisibleItems filtering is needed here; the in-repo tests only prove delegation, see the manual checklist.
+        // A library-restricted token only reaches folders inside its libraries, whose children are in the same library, and
+        // playlists and collections, whose linked entries can come from any library: those are filtered and paged here.
+        if (scope.IsRestricted && parent is Playlist or BoxSet)
+        {
+            query.StartIndex = null;
+            query.Limit = null;
+            var entries = parent.GetItems(query).Items.Where(i => _lookup.IsAllowed(scope, i)).ToList();
+            return Task.FromResult(ToolResult.Json(Page(user, entries.Count, entries.Skip(startIndex).Take(limit))));
+        }
+
         var result = parent.GetItems(query);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }

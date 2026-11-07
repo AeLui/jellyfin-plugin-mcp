@@ -80,21 +80,22 @@ public sealed class GetPersonTool : LibraryToolBase
         }
 
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
 
         // Mirrors PersonsController.GetPerson / DtoService: the person is loaded without a user (people belong to no
         // library) and only parental visibility is checked. Only person metadata is returned from this lookup; the
         // items below come from a user-scoped query, so library access still applies.
-        var person = personId is { } id ? _lookup.GetVisiblePerson(user, id) : _lookup.GetVisiblePerson(user, name!);
+        var person = personId is { } id ? _lookup.GetVisiblePerson(scope, id) : _lookup.GetVisiblePerson(scope, name!);
 
         // Person ids are deterministic from names, so a person is only revealed when the user can see at least one of
         // their items; otherwise (whatever startIndex is) the person looks exactly like an unknown one.
-        if (_libraryManager.GetVisibleItemsResult(PersonQuery(user, person, 0, 1)).Items.Count == 0)
+        if (_libraryManager.GetVisibleItemsResult(PersonQuery(user, person, 0, 1), scope).Items.Count == 0)
         {
             throw new ToolException("Item not found");
         }
 
-        var items = _libraryManager.GetVisibleItemsResult(PersonQuery(user, person, startIndex, limit));
+        var items = _libraryManager.GetVisibleItemsResult(PersonQuery(user, person, startIndex, limit), scope);
 
         var result = new Dictionary<string, object>
         {

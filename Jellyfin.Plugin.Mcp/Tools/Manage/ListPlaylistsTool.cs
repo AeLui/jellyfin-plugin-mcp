@@ -81,12 +81,13 @@ public sealed class ListPlaylistsTool : ManageToolBase
         ArgumentNullException.ThrowIfNull(args);
         var playlistId = args.GetGuid("playlistId");
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
 
         if (playlistId is { } id)
         {
-            var playlist = _resolver.GetReadable(user, id);
-            var entries = playlist.GetManageableItems().Where(e => e.Item2.IsVisible(user)).ToList();
+            var playlist = _resolver.GetReadable(scope, id);
+            var entries = playlist.GetManageableItems().Where(e => e.Item2.IsVisible(user) && _resolver.IsAllowed(scope, e.Item2)).ToList();
             return Task.FromResult(ToolResult.Json(new
             {
                 totalCount = entries.Count,
@@ -97,6 +98,7 @@ public sealed class ListPlaylistsTool : ManageToolBase
         }
 
         var playlists = _playlistManager.GetPlaylists(user.Id)
+            .Where(p => _resolver.IsAllowed(scope, p))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return Task.FromResult(ToolResult.Json(new

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -26,6 +27,7 @@ public sealed class ListLibrariesTool : LibraryToolBase
         "items");
 
     private readonly IUserViewManager _userViewManager;
+    private readonly ItemLookup _lookup;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ListLibrariesTool"/> class.
@@ -34,10 +36,12 @@ public sealed class ListLibrariesTool : LibraryToolBase
     /// <param name="settings">The plugin settings.</param>
     /// <param name="userDataManager">The user data manager.</param>
     /// <param name="userViewManager">The user view manager.</param>
-    public ListLibrariesTool(IUserManager userManager, IPluginSettings settings, IUserDataManager userDataManager, IUserViewManager userViewManager)
+    /// <param name="lookup">The visibility-checked item lookup.</param>
+    public ListLibrariesTool(IUserManager userManager, IPluginSettings settings, IUserDataManager userDataManager, IUserViewManager userViewManager, ItemLookup lookup)
         : base(userManager, settings, userDataManager)
     {
         _userViewManager = userViewManager;
+        _lookup = lookup;
     }
 
     /// <inheritdoc />
@@ -58,8 +62,13 @@ public sealed class ListLibrariesTool : LibraryToolBase
     /// <inheritdoc />
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
-        var user = GetUser(principal);
-        var views = _userViewManager.GetUserViews(new UserViewQuery { User = user });
+        var scope = GetScopedUser(principal);
+
+        // A library-restricted token lists its allowed libraries themselves rather than the user's views, which can group
+        // several libraries (and so hidden ones) into one view.
+        IEnumerable<Folder> views = scope.IsRestricted
+            ? _lookup.AllowedLibraries(scope)
+            : _userViewManager.GetUserViews(new UserViewQuery { User = scope.User });
         var libraries = views.Select(v => new
         {
             id = v.Id.ToString("N", CultureInfo.InvariantCulture),

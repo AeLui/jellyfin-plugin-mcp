@@ -418,7 +418,7 @@ public class CatalogueToolsTests
         _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>()))
             .Callback<UserViewQuery>(q => captured = q)
             .Returns(new Folder[] { movies });
-        var tool = new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object);
+        var tool = new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object, Lookup());
 
         var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
 
@@ -438,7 +438,7 @@ public class CatalogueToolsTests
             Search(),
             Browse(),
             GetItem(),
-            new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object),
+            new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object, Lookup()),
         ];
 
         Assert.Equal(
@@ -495,7 +495,7 @@ public class CatalogueToolsTests
     {
         var movies = new CollectionFolder { Id = Guid.NewGuid(), Name = "Movies", CollectionType = CollectionType.movies };
         _views.Setup(v => v.GetUserViews(It.IsAny<UserViewQuery>())).Returns(new Folder[] { movies });
-        var tool = new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object);
+        var tool = new ListLibrariesTool(_users.Object, _settings.Object, _userData.Object, _views.Object, Lookup());
 
         var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
 

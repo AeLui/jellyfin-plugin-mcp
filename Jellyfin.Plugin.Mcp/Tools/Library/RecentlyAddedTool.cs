@@ -74,10 +74,11 @@ public sealed class RecentlyAddedTool : LibraryToolBase
         var libraryId = args.GetGuid("libraryId");
         var types = args.GetEnumArray<RecentType>("types");
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
         if (libraryId is not null)
         {
-            _lookup.EnsureUserLibrary(user, libraryId.Value);
+            _lookup.EnsureUserLibrary(scope, libraryId.Value);
         }
 
         var query = new InternalItemsQuery(user)
@@ -95,7 +96,7 @@ public sealed class RecentlyAddedTool : LibraryToolBase
             query.ParentId = libraryId.Value;
         }
 
-        var result = _libraryManager.GetVisibleItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query, scope);
         var page = new
         {
             totalCount = result.TotalRecordCount,

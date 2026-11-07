@@ -54,10 +54,10 @@ public sealed class GetItemTool : LibraryToolBase
     public override Task<ToolResult> ExecuteAsync(ToolArguments args, McpPrincipal principal, CancellationToken ct)
     {
         var id = args.GetRequiredGuid("itemId");
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, id);
+        var scope = GetScopedUser(principal);
+        var item = _lookup.GetVisible(scope, id);
         var people = _libraryManager.GetPeople(item);
-        var detail = ItemMapper.Detail(item, UserDataManager.GetUserData(user, item), people, _lookup.GetPersonIds(user, people));
+        var detail = ItemMapper.Detail(item, UserDataManager.GetUserData(scope.User, item), people, _lookup.GetPersonIds(scope, people));
         return Task.FromResult(ToolResult.Json(detail));
     }
 }

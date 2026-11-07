@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -72,31 +73,45 @@ public sealed class MovieRecommendationsTool : LibraryToolBase
         var libraryId = args.GetGuid("libraryId");
         var categoryLimit = Math.Clamp(args.GetInt("categoryLimit") ?? DefaultCategoryLimit, 1, MaxCategoryLimit);
         var itemsPerCategory = Math.Clamp(args.GetInt("itemsPerCategory") ?? DefaultItemsPerCategory, 1, MaxItemsPerCategory);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
         if (libraryId is not null)
         {
-            _lookup.GetVisibleContainer(user, libraryId.Value);
+            _lookup.GetVisibleContainer(scope, libraryId.Value);
         }
 
-        var recommendations = await _similarItems.GetMovieRecommendationsAsync(
-            user,
-            libraryId ?? Guid.Empty,
-            categoryLimit,
-            itemsPerCategory,
-            new DtoOptions(false),
-            ct).ConfigureAwait(false);
-        var categories = recommendations
-            .Select(c => new
+        // The baselines (recently played and liked movies, and their directors and actors) come from the parent. A library-
+        // restricted token without a library asks once per allowed library, so no baseline comes from another library.
+        IEnumerable<Guid> parents = libraryId is { } id ? [id]
+            : scope.IsRestricted ? _lookup.AllowedLibraries(scope).Select(l => l.Id).ToList()
+            : [Guid.Empty];
+        var categories = new List<object>();
+        foreach (var parent in parents)
+        {
+            var recommendations = await _similarItems.GetMovieRecommendationsAsync(
+                user,
+                parent,
+                categoryLimit,
+                itemsPerCategory,
+                new DtoOptions(false),
+                ct).ConfigureAwait(false);
+            categories.AddRange(recommendations
+                .Select(c => new
+                {
+                    reason = SnakeCase.From(c.RecommendationType.ToString()),
+                    baseline = string.IsNullOrEmpty(c.BaselineItemName) ? null : c.BaselineItemName,
+                    items = c.Items
+                        .Where(i => VisibleItems.IsVisible(_lookup, i, scope))
+                        .Select(i => ItemMapper.Summary(i, UserDataManager.GetUserData(user, i)))
+                        .ToList(),
+                })
+                .Where(c => c.items.Count > 0));
+            if (categories.Count >= categoryLimit)
             {
-                reason = SnakeCase.From(c.RecommendationType.ToString()),
-                baseline = string.IsNullOrEmpty(c.BaselineItemName) ? null : c.BaselineItemName,
-                items = c.Items
-                    .Where(i => VisibleItems.IsVisible(i, user))
-                    .Select(i => ItemMapper.Summary(i, UserDataManager.GetUserData(user, i)))
-                    .ToList(),
-            })
-            .Where(c => c.items.Count > 0)
-            .ToList();
-        return ToolResult.Json(new { categories });
+                break;
+            }
+        }
+
+        return ToolResult.Json(new { categories = categories.Take(categoryLimit).ToList() });
     }
 }

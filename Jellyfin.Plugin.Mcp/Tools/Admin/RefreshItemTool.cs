@@ -68,7 +68,7 @@ public sealed class RefreshItemTool : AdminToolBase
         var replaceMetadata = args.GetBool("replaceMetadata") ?? false;
 
         // Admins can still have library restrictions, so the item must be visible to the token's user.
-        var item = _lookup.GetVisible(GetUser(principal), id);
+        var item = _lookup.GetVisible(GetScopedUser(principal), id);
 
         var mode = replaceImages || replaceMetadata ? MetadataRefreshMode.FullRefresh : MetadataRefreshMode.Default;
         var options = new MetadataRefreshOptions(new DirectoryService(_fileSystem))

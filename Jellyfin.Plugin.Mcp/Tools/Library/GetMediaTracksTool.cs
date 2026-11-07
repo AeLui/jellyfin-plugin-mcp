@@ -91,8 +91,7 @@ public sealed class GetMediaTracksTool : LibraryToolBase
     {
         ArgumentNullException.ThrowIfNull(args);
         var id = args.GetRequiredGuid("itemId");
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, id);
+        var item = _lookup.GetVisible(GetScopedUser(principal), id);
         if (!IsVideo(item))
         {
             throw new ToolException("Tracks are only available for video items");

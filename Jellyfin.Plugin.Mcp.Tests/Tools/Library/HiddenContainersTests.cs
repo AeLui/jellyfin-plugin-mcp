@@ -182,5 +182,5 @@ public class HiddenContainersTests
 
     [Fact]
     public void GetVisibleItemsResult_QueryWithoutUser_IsProgrammingError()
-        => Assert.Throws<InvalidOperationException>(() => _library.Object.GetVisibleItemsResult(new InternalItemsQuery()));
+        => Assert.Throws<InvalidOperationException>(() => _library.Object.GetVisibleItemsResult(new InternalItemsQuery(), ScopedUser.Unrestricted(_user)));
 }

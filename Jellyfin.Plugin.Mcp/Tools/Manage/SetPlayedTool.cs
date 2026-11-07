@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Playlists;
 
 namespace Jellyfin.Plugin.Mcp.Tools.Manage;
 
@@ -59,17 +63,23 @@ public sealed class SetPlayedTool : ManageToolBase
         ArgumentNullException.ThrowIfNull(args);
         var id = args.GetRequiredGuid("itemId");
         var played = args.GetBool("played") ?? throw new ToolException("Invalid argument 'played': is required");
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, id);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
+        var item = _lookup.GetVisible(scope, id);
 
-        // The same calls PlaystateController makes; folders cascade to their children.
-        if (played)
+        // The same calls PlaystateController makes; folders cascade to their children. A playlist or collection cascades to
+        // entries from any library, so for a library-restricted token only its visible entries are marked.
+        IReadOnlyList<BaseItem> targets = scope.IsRestricted && item is Playlist or BoxSet ? _lookup.VisibleChildren(scope, (Folder)item) : [item];
+        foreach (var target in targets)
         {
-            item.MarkPlayed(user, null, true);
-        }
-        else
-        {
-            item.MarkUnplayed(user);
+            if (played)
+            {
+                target.MarkPlayed(user, null, true);
+            }
+            else
+            {
+                target.MarkUnplayed(user);
+            }
         }
 
         return Task.FromResult(ToolResult.Json(ItemMapper.Summary(item, _userDataManager.GetUserData(user, item))));

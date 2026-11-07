@@ -90,10 +90,11 @@ public sealed class SearchTool : LibraryToolBase
         var libraryId = args.GetGuid("libraryId");
         var (startIndex, limit) = args.GetPaging(MaxPageSize);
         var years = YearRange(yearFrom, yearTo);
-        var user = GetUser(principal);
+        var scope = GetScopedUser(principal);
+        var user = scope.User;
         if (libraryId is not null)
         {
-            _lookup.EnsureUserLibrary(user, libraryId.Value);
+            _lookup.EnsureUserLibrary(scope, libraryId.Value);
         }
 
         var query = new InternalItemsQuery(user)
@@ -122,7 +123,7 @@ public sealed class SearchTool : LibraryToolBase
             query.ParentId = libraryId.Value;
         }
 
-        var result = _libraryManager.GetVisibleItemsResult(query);
+        var result = _libraryManager.GetVisibleItemsResult(query, scope);
         return Task.FromResult(ToolResult.Json(Page(user, result.TotalRecordCount, result.Items)));
     }
 

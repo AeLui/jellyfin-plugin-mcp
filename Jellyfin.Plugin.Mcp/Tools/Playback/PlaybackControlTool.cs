@@ -139,13 +139,13 @@ public sealed class PlaybackControlTool : PlaybackToolBase
             throw new ToolException("Nothing is playing on this session");
         }
 
-        var user = GetUser(principal);
-        var item = _lookup.GetVisible(user, playingId.Value);
+        var scope = GetScopedUser(principal);
+        var item = _lookup.GetVisible(scope, playingId.Value);
 
         // Clients report the displayed item and, separately, the version they actually play; the command acts on that version.
         if (Guid.TryParse(session.PlayState?.MediaSourceId, out var versionId) && versionId != item.Id)
         {
-            item = _lookup.GetVisible(user, versionId);
+            item = _lookup.GetVisible(scope, versionId);
         }
 
         _tracks.Validate(item, audio ? MediaStreamType.Audio : MediaStreamType.Subtitle, index, "streamIndex");
