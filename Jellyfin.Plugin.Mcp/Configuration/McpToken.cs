@@ -31,6 +31,16 @@ public class McpToken
 #pragma warning restore CA2227
 
     /// <summary>
+    /// Gets or sets the ids of the libraries the token is limited to; empty means every library the user can access.
+    /// </summary>
+    /// <remarks>
+    /// Tokens saved before this field existed deserialize with an empty list, so they stay unrestricted.
+    /// </remarks>
+#pragma warning disable CA2227 // Collection properties should be read only (required for XML serialization)
+    public Collection<Guid> LibraryIds { get; set; } = new();
+#pragma warning restore CA2227
+
+    /// <summary>
     /// Gets or sets the lowercase SHA-256 hex hash of the token.
     /// </summary>
     public string TokenHash { get; set; } = string.Empty;

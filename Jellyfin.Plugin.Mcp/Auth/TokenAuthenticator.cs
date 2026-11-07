@@ -83,13 +83,17 @@ public sealed class TokenAuthenticator
         }
 
         var scopes = new HashSet<string>(token.Scopes.Where(McpScopes.All.Contains), StringComparer.Ordinal);
-        if (!user.HasPermission(PermissionKind.IsAdministrator))
+        var libraryIds = new HashSet<Guid>(token.LibraryIds ?? []);
+
+        // Admin tools are server-wide (all sessions, users, tasks, scans), so a library-restricted token never gets them,
+        // even if the stored token was edited by hand; the token keeps working with its other scopes.
+        if (!user.HasPermission(PermissionKind.IsAdministrator) || libraryIds.Count > 0)
         {
             scopes.Remove(McpScopes.Admin);
         }
 
         _store.TouchLastUsed(token.Id, now);
-        return new AuthResult(AuthStatus.Success, new McpPrincipal(user.Id, scopes), token);
+        return new AuthResult(AuthStatus.Success, new McpPrincipal(user.Id, scopes) { LibraryIds = libraryIds }, token);
     }
 
     private static AuthResult Fail(AuthStatus status) => new(status, null, null);

@@ -53,7 +53,7 @@ public sealed class TokenStore : ITokenStore
     }
 
     /// <inheritdoc />
-    public (McpToken Token, string Plaintext) Create(string name, Guid userId, IReadOnlyCollection<string> scopes, DateTime? expiresAt)
+    public (McpToken Token, string Plaintext) Create(string name, Guid userId, IReadOnlyCollection<string> scopes, DateTime? expiresAt, IReadOnlyCollection<Guid>? libraryIds = null)
     {
         var plaintext = TokenGenerator.NewToken();
         var token = new McpToken
@@ -62,6 +62,7 @@ public sealed class TokenStore : ITokenStore
             Name = name,
             UserId = userId,
             Scopes = new Collection<string>(scopes.ToList()),
+            LibraryIds = new Collection<Guid>((libraryIds ?? Array.Empty<Guid>()).Distinct().ToList()),
             TokenHash = TokenGenerator.Hash(plaintext),
             Prefix = TokenGenerator.DisplayPrefix(plaintext),
             CreatedAt = _clock.UtcNow,
@@ -120,6 +121,7 @@ public sealed class TokenStore : ITokenStore
         Name = t.Name,
         UserId = t.UserId,
         Scopes = new Collection<string>(t.Scopes.ToList()),
+        LibraryIds = new Collection<Guid>((t.LibraryIds ?? new Collection<Guid>()).ToList()),
         TokenHash = t.TokenHash,
         Prefix = t.Prefix,
         CreatedAt = t.CreatedAt,

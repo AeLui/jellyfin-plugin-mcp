@@ -144,6 +144,42 @@ public class TokenAuthenticatorTests
     }
 
     [Fact]
+    public void LibraryIds_CarriedOnPrincipal()
+    {
+        var user = TestUsers.Create();
+        _users.Setup(u => u.GetUserById(user.Id)).Returns(user);
+        var library = Guid.NewGuid();
+        var (_, plaintext) = _store.Create("t", user.Id, new[] { McpScopes.Library }, null, new[] { library });
+
+        var result = _auth.Authenticate(Bearer(plaintext), Ip);
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.Equal(new[] { library }, result.Principal!.LibraryIds);
+    }
+
+    [Fact]
+    public void NoLibraryIds_PrincipalUnrestricted()
+    {
+        var (plaintext, _, _) = Setup(false, false, McpScopes.Library);
+
+        Assert.Empty(_auth.Authenticate(Bearer(plaintext), Ip).Principal!.LibraryIds);
+    }
+
+    [Fact]
+    public void AdminScope_DroppedWhenTokenRestrictedToLibraries()
+    {
+        var admin = TestUsers.Create(admin: true);
+        _users.Setup(u => u.GetUserById(admin.Id)).Returns(admin);
+        var (_, plaintext) = _store.Create("t", admin.Id, new[] { McpScopes.Library, McpScopes.Admin }, null, new[] { Guid.NewGuid() });
+
+        var result = _auth.Authenticate(Bearer(plaintext), Ip);
+
+        Assert.Equal(AuthStatus.Success, result.Status);
+        Assert.Contains(McpScopes.Library, result.Principal!.Scopes);
+        Assert.DoesNotContain(McpScopes.Admin, result.Principal.Scopes);
+    }
+
+    [Fact]
     public void UserDemotedBetweenRequests_LosesAdmin()
     {
         var (plaintext, _, user) = Setup(true, false, McpScopes.Library, McpScopes.Admin);

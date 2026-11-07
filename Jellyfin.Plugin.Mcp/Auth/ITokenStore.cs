@@ -29,8 +29,9 @@ public interface ITokenStore
     /// <param name="userId">The Jellyfin user the token acts as.</param>
     /// <param name="scopes">The granted scopes.</param>
     /// <param name="expiresAt">The expiry, or null.</param>
+    /// <param name="libraryIds">The libraries the token is limited to, or null or empty for no restriction.</param>
     /// <returns>The stored token and its plaintext, which is never stored.</returns>
-    (McpToken Token, string Plaintext) Create(string name, Guid userId, IReadOnlyCollection<string> scopes, DateTime? expiresAt);
+    (McpToken Token, string Plaintext) Create(string name, Guid userId, IReadOnlyCollection<string> scopes, DateTime? expiresAt, IReadOnlyCollection<Guid>? libraryIds = null);
 
     /// <summary>
     /// Deletes a token.

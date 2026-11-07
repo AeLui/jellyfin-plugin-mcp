@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -30,6 +31,80 @@ public class TokenStoreTests
         Assert.DoesNotContain(plaintext, stored.TokenHash, StringComparison.Ordinal);
         Assert.DoesNotContain(plaintext, stored.Prefix, StringComparison.Ordinal);
         Assert.NotNull(store.FindByHash(TokenGenerator.Hash(plaintext)));
+    }
+
+    [Fact]
+    public void Create_StoresLibraryIds()
+    {
+        var config = new PluginConfiguration();
+        var store = new TokenStore(() => config, _ => { }, new FakeClock());
+        var library = Guid.NewGuid();
+
+        var (token, _) = store.Create("kids", Guid.NewGuid(), new[] { McpScopes.Library }, null, new[] { library, library });
+
+        Assert.Equal(new[] { library }, Assert.Single(config.Tokens).LibraryIds);
+        Assert.Equal(new[] { library }, token.LibraryIds);
+        Assert.Equal(new[] { library }, store.GetAll().Single().LibraryIds);
+    }
+
+    [Fact]
+    public void Create_WithoutLibraryIds_IsUnrestricted()
+    {
+        var config = new PluginConfiguration();
+        var store = new TokenStore(() => config, _ => { }, new FakeClock());
+
+        store.Create("all", Guid.NewGuid(), new[] { McpScopes.Library }, null);
+
+        Assert.Empty(Assert.Single(config.Tokens).LibraryIds);
+    }
+
+    [Fact]
+    public void XmlConfig_FromBeforeLibraryIds_DeserializesUnrestricted()
+    {
+        var id = Guid.NewGuid();
+        var xml = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+              <Enabled>true</Enabled>
+              <MaxPageSize>100</MaxPageSize>
+              <Tokens>
+                <McpToken>
+                  <Id>{id}</Id>
+                  <Name>old</Name>
+                  <UserId>{Guid.NewGuid()}</UserId>
+                  <Scopes><string>library</string></Scopes>
+                  <TokenHash>abc</TokenHash>
+                  <Prefix>jmcp_ab</Prefix>
+                  <CreatedAt>2026-01-01T00:00:00Z</CreatedAt>
+                  <Enabled>true</Enabled>
+                </McpToken>
+              </Tokens>
+            </PluginConfiguration>
+            """;
+
+        using var reader = new StringReader(xml);
+        var config = (PluginConfiguration)new XmlSerializer(typeof(PluginConfiguration)).Deserialize(reader)!;
+
+        var token = Assert.Single(config.Tokens);
+        Assert.Equal(id, token.Id);
+        Assert.NotNull(token.LibraryIds);
+        Assert.Empty(token.LibraryIds);
+    }
+
+    [Fact]
+    public void XmlConfig_RoundTripsLibraryIds()
+    {
+        var library = Guid.NewGuid();
+        var config = new PluginConfiguration();
+        config.Tokens.Add(new McpToken { Id = Guid.NewGuid(), LibraryIds = new Collection<Guid> { library } });
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+        using var writer = new StringWriter();
+        serializer.Serialize(writer, config);
+        using var reader = new StringReader(writer.ToString());
+
+        var copy = (PluginConfiguration)serializer.Deserialize(reader)!;
+
+        Assert.Equal(new[] { library }, Assert.Single(copy.Tokens).LibraryIds);
     }
 
     [Fact]
