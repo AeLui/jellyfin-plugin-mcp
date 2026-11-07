@@ -301,7 +301,7 @@ Play items on one of your sessions (now, next or at the end of the queue), optio
 | `audioStreamIndex` | integer | no | | Audio track `index` from `jellyfin_get_media_tracks`. |
 | `subtitleStreamIndex` | integer | no | | Subtitle track `index` from `jellyfin_get_media_tracks`, or `-1` for no subtitles. |
 
-The track indexes are only accepted with exactly one item and `mode` `now` (Jellyfin applies them to the item it starts), and must be a track of that type on the item, for example `Invalid argument 'subtitleStreamIndex': no subtitle track with index 1`. The result echoes the indexes that were sent. Whether the device honors them depends on the client.
+The track indexes are only accepted with exactly one item and `mode` `now` (Jellyfin applies them to the item it starts), and must be a track of that type on the item, for example `Invalid argument 'subtitleStreamIndex': no subtitle track with index 1`. When a track index is given, the request also pins the item's own media source (its main version), the one the indexes were checked against. The result echoes the indexes that were sent. Whether the device honors them depends on the client.
 
 ```json
 {"name":"jellyfin_play","arguments":{"sessionId":"7c1d...","itemIds":["a1b2..."],"audioStreamIndex":2,"subtitleStreamIndex":3}}
@@ -321,7 +321,7 @@ Pause, unpause, stop, seek, skip to the next or previous item, or switch the aud
 | `positionMinutes` | number | for `seek` | | Target position in minutes, not negative. |
 | `streamIndex` | integer | for `set_audio_track`, `set_subtitle_track` | | Track `index` from `jellyfin_get_media_tracks` for the item playing in the session; `-1` turns subtitles off. Rejected for other commands. |
 
-For the track commands the session must be playing an item the user can see (`Nothing is playing on this session` otherwise), and the index must be a track of that type on it. The result adds `streamIndex`.
+For the track commands the session must be playing an item the user can see (`Nothing is playing on this session` otherwise), and the index must be a track of that type on it. When the session plays an alternate version of the item, the index is checked against that version's tracks. The result adds `streamIndex`.
 
 ```json
 {"name":"jellyfin_playback_control","arguments":{"sessionId":"7c1d...","command":"seek","positionMinutes":62.5}}

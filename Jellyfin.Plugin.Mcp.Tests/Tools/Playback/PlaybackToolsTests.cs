@@ -709,4 +709,81 @@ public class PlaybackToolsTests
         Assert.Equal("Session not found", ex.Message);
         GeneralNeverSent();
     }
+
+    [Fact]
+    public async Task Play_WithTracks_PinsTheValidatedMediaSource()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var sent = CapturePlay();
+
+        await Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"],"audioStreamIndex":2}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(movie.Id.ToString("N"), sent()!.MediaSourceId);
+    }
+
+    [Fact]
+    public async Task Play_WithoutTracks_LeavesMediaSourceToClient()
+    {
+        AddSession("mine", _user.Id);
+        var movie = MovieWithTracks();
+        var sent = CapturePlay();
+
+        await Play().ExecuteAsync(Args($$"""{"sessionId":"mine","itemIds":["{{movie.Id}}"]}"""), _principal, CancellationToken.None);
+
+        Assert.Null(sent()!.MediaSourceId);
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_AlternateVersionPlaying_ValidatesThatVersion()
+    {
+        var session = AddSession("mine", _user.Id);
+        session.FullNowPlayingItem = MovieWithTracks();
+        var version = new Movie { Id = Guid.NewGuid(), Name = "Two Voices 1080p" };
+        _library.Setup(l => l.GetItemById<BaseItem>(version.Id, _user)).Returns(version);
+        _mediaSources.Setup(m => m.GetMediaStreams(version.Id)).Returns(new[]
+        {
+            new MediaStream { Index = 1, Type = MediaStreamType.Audio },
+            new MediaStream { Index = 5, Type = MediaStreamType.Audio, Language = "fra" },
+        });
+        session.PlayState.MediaSourceId = version.Id.ToString("N");
+        var sent = CaptureGeneral();
+
+        await Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":5}"""), _principal, CancellationToken.None);
+
+        Assert.Equal("5", sent()!.Arguments["Index"]);
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_AlternateVersionPlaying_RejectsPrimaryOnlyIndex()
+    {
+        var session = AddSession("mine", _user.Id);
+        session.FullNowPlayingItem = MovieWithTracks();
+        var version = new Movie { Id = Guid.NewGuid(), Name = "Two Voices 1080p" };
+        _library.Setup(l => l.GetItemById<BaseItem>(version.Id, _user)).Returns(version);
+        _mediaSources.Setup(m => m.GetMediaStreams(version.Id)).Returns(new[] { new MediaStream { Index = 1, Type = MediaStreamType.Audio } });
+        session.PlayState.MediaSourceId = version.Id.ToString("N");
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":2}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Invalid argument 'streamIndex': no audio track with index 2", ex.Message);
+        GeneralNeverSent();
+    }
+
+    [Fact]
+    public async Task Control_SetTrack_HiddenVersionPlaying_IsNotFound()
+    {
+        var session = AddSession("mine", _user.Id);
+        session.FullNowPlayingItem = MovieWithTracks();
+        var hiddenVersion = Guid.NewGuid();
+        _library.Setup(l => l.GetItemById<BaseItem>(hiddenVersion, _user)).Returns((BaseItem?)null);
+        session.PlayState.MediaSourceId = hiddenVersion.ToString("N");
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() =>
+            Control().ExecuteAsync(Args("""{"sessionId":"mine","command":"set_audio_track","streamIndex":2}"""), _principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        GeneralNeverSent();
+    }
 }

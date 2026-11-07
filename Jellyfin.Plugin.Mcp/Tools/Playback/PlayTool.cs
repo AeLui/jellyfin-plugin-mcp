@@ -125,6 +125,9 @@ public sealed class PlayTool : PlaybackToolBase
             StartPositionTicks = startMinutes is null ? null : startMinutes.Value * TimeSpan.TicksPerMinute,
             AudioStreamIndex = audioIndex,
             SubtitleStreamIndex = subtitleIndex,
+
+            // The indexes were checked against the item's own media source; pin it so the client does not pick another version.
+            MediaSourceId = audioIndex is null && subtitleIndex is null ? null : items[0].Id.ToString("N", CultureInfo.InvariantCulture),
         };
         await SendAsync(() => SessionManager.SendPlayCommand(ControllingSessionId, session.Id, request, ct), isPlay: true).ConfigureAwait(false);
         return ToolResult.Json(new
