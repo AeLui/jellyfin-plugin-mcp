@@ -57,7 +57,7 @@ The token dialog in the plugin page generates both snippets for you. The Claude 
 
 ## Scopes and tools
 
-29 tools in four scopes. A token only sees the tools its scopes allow.
+29 tools and 4 prompts in four scopes. A token only sees the tools and prompts its scopes allow.
 
 | Scope | Tools | Purpose |
 |---|---|---|
@@ -67,6 +67,8 @@ The token dialog in the plugin page generates both snippets for you. The Claude 
 | `admin` | 8 | Users, scheduled tasks, library scan, metadata refresh, server status, all users' sessions, activity log (administrators only) |
 
 Full reference: [docs/tools.md](docs/tools.md).
+
+Prompts, shown by clients as slash commands (for example `/mcp__jellyfin__movie_night` in Claude Code): `movie_night`, `catch_me_up` and `whats_new` (library) and `library_health` (admin). See [docs/prompts.md](docs/prompts.md).
 
 ## Agent skill
 
@@ -82,6 +84,7 @@ The plugin runs inside your Jellyfin server and makes no outbound connections. T
 
 - [Installation and client setup](docs/installation.md)
 - [Tool reference](docs/tools.md)
+- [Prompt reference](docs/prompts.md)
 - [Security model](docs/security.md) - read this before exposing the endpoint beyond your LAN
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)

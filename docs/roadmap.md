@@ -8,7 +8,7 @@ OAuth 2.1 (authorization server, dynamic client registration, PKCE with a Jellyf
 
 ## Later
 
-- MCP resources (for example library and item metadata as resources) and prompts.
+- MCP resources were considered on 2026-11-07 and deferred: item metadata as a resource duplicates `jellyfin_get_item`, and clients mostly use resources for manual attachment.
 - Optional SSE streaming where useful.
 - More clients documented and tested (other desktop and IDE assistants).
 - More tools: user-scoped settings.

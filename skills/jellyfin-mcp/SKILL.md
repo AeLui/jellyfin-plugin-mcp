@@ -14,6 +14,8 @@ Core principle: **get ids from the tools, never guess them.** Ids are GUIDs; an 
 
 List results are item summaries that already carry the user's `played`, `favorite` and `playbackPositionMinutes`, so "unwatched films by X" is one `jellyfin_get_person` call filtered on `played`. When a search returns several plausible matches (remakes, same-name series), ask which one, showing the year.
 
+The server also offers prompts that clients show as slash commands: `movie_night`, `catch_me_up`, `whats_new` and (admin) `library_health`. They only tell you which of these tools to call; follow them like a user request.
+
 ## Setup (only if no jellyfin_* tools exist)
 
 The user installs the plugin from the repository above, creates a token in **Dashboard > Plugins > MCP Server**, then:
