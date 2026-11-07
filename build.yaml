@@ -1,7 +1,7 @@
 ---
 name: "MCP Server"
 guid: "08dd6fbf-c026-48c9-9405-824c3906df09"
-version: "0.5.0.0"
+version: "0.6.0.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Let AI assistants like Claude search your library, control playback and manage playlists."
@@ -12,7 +12,8 @@ description: >
   you watched last week, start or pause playback on any of your devices,
   manage playlists, favorites and watched status, and, as an administrator,
   run scheduled tasks and library scans. 29 tools in four scopes (library,
-  playback, manage, admin). Every access token belongs to one Jellyfin user
+  playback, manage, admin), plus four ready-made prompts such as movie night
+  and what's new. Every access token belongs to one Jellyfin user
   and only sees what that user can see. Create tokens on the plugin settings
   page and connect your assistant to https://your-server/mcp.
 category: "General"
@@ -21,9 +22,6 @@ owner: "AeLui"
 artifacts:
 - "Jellyfin.Plugin.Mcp.dll"
 changelog: >
-  Audio and subtitle tracks: new jellyfin_get_media_tracks; jellyfin_play can
-  start with a chosen audio and subtitle track and jellyfin_playback_control can
-  switch them during playback (set_audio_track, set_subtitle_track). New
-  read-only admin tools, for administrators only: jellyfin_server_status
-  (version, pending restart, activity, disk space), jellyfin_list_all_sessions
-  (every user's sessions, with transcoding details) and jellyfin_activity_log.
+  MCP prompts: movie_night, catch_me_up, whats_new and library_health
+  (administrators only) show up in clients as slash commands and follow the
+  token's scopes. jellyfin_recently_added items now include dateAdded.
