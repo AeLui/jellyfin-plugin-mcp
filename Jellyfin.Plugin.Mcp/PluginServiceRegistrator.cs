@@ -54,12 +54,20 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         }
 
         serviceCollection.AddScoped<ToolRegistry>();
+
+        foreach (var promptType in typeof(PluginServiceRegistrator).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IMcpPrompt).IsAssignableFrom(t)))
+        {
+            serviceCollection.AddScoped(typeof(IMcpPrompt), promptType);
+        }
+
+        serviceCollection.AddScoped<PromptRegistry>();
         serviceCollection.AddScoped(sp =>
         {
             var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Jellyfin.Plugin.Mcp");
             return new JsonRpcDispatcher(
                 sp.GetRequiredService<ToolRegistry>(),
-                new PromptRegistry(Array.Empty<IMcpPrompt>()),
+                sp.GetRequiredService<PromptRegistry>(),
                 sp.GetRequiredService<McpServerInfo>(),
                 (toolName, exception) => McpLog.ToolFailure(logger, exception, toolName),
                 call =>

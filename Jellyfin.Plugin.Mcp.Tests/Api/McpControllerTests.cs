@@ -160,27 +160,7 @@ public class McpControllerTests
     [Fact]
     public void Registrator_ResolvesAllTools()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(new Mock<IUserManager>().Object);
-        services.AddSingleton(new Mock<ILibraryManager>().Object);
-        services.AddSingleton(new Mock<IUserDataManager>().Object);
-        services.AddSingleton(new Mock<IUserViewManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Playlists.IPlaylistManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Providers.IProviderManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.IO.IFileSystem>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.Tasks.ITaskManager>().Object);
-        services.AddSingleton(new Mock<ISimilarItemsManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Collections.ICollectionManager>().Object);
-        services.AddSingleton(new Mock<IMediaSourceManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.ISystemManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.Activity.IActivityManager>().Object);
-        services.AddSingleton(new Mock<IServerApplicationHost>().Object);
-        new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
-
-        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        using var provider = RegisteredServices.Build();
         using var scope = provider.CreateScope();
 
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<ToolRegistry>());
@@ -211,26 +191,7 @@ public class McpControllerTests
     [Fact]
     public void Registrator_EveryToolHasTitleAndObjectSchemas()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(new Mock<IUserManager>().Object);
-        services.AddSingleton(new Mock<ILibraryManager>().Object);
-        services.AddSingleton(new Mock<IUserDataManager>().Object);
-        services.AddSingleton(new Mock<IUserViewManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.TV.ITVSeriesManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Session.ISessionManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Playlists.IPlaylistManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Providers.IProviderManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.IO.IFileSystem>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.Tasks.ITaskManager>().Object);
-        services.AddSingleton(new Mock<ISimilarItemsManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.Collections.ICollectionManager>().Object);
-        services.AddSingleton(new Mock<IMediaSourceManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Controller.ISystemManager>().Object);
-        services.AddSingleton(new Mock<MediaBrowser.Model.Activity.IActivityManager>().Object);
-        services.AddSingleton(new Mock<IServerApplicationHost>().Object);
-        new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
-        using var provider = services.BuildServiceProvider();
+        using var provider = RegisteredServices.Build();
         using var scope = provider.CreateScope();
 
         var tools = scope.ServiceProvider.GetServices<IMcpTool>().ToList();
@@ -244,6 +205,44 @@ public class McpControllerTests
             Assert.True(tool.OutputSchema.HasValue, tool.Name + " has no output schema");
             Assert.Equal("object", tool.OutputSchema!.Value.GetProperty("type").GetString());
         }
+    }
+
+    [Fact]
+    public void Registrator_RegistersExactly4Prompts()
+    {
+        var services = new ServiceCollection();
+        new PluginServiceRegistrator().RegisterServices(services, new Mock<IServerApplicationHost>().Object);
+
+        var prompts = services.Where(d => d.ServiceType == typeof(IMcpPrompt)).Select(d => d.ImplementationType!).ToList();
+
+        Assert.Equal(4, prompts.Count);
+        Assert.Equal(4, prompts.Distinct().Count());
+    }
+
+    [Fact]
+    public void Registrator_ResolvesPromptsAndDispatcher()
+    {
+        using var provider = RegisteredServices.Build();
+        using var scope = provider.CreateScope();
+        var all = new McpPrincipal(Guid.NewGuid(), McpScopes.All);
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<JsonRpcDispatcher>());
+        var names = scope.ServiceProvider.GetRequiredService<PromptRegistry>().ListFor(all).Select(p => p.Name);
+        Assert.Equal(new[] { "catch_me_up", "library_health", "movie_night", "whats_new" }, names);
+    }
+
+    [Fact]
+    public async Task Registrator_DispatcherServesRegisteredPrompts()
+    {
+        using var provider = RegisteredServices.Build();
+        using var scope = provider.CreateScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<JsonRpcDispatcher>();
+        var library = new McpPrincipal(Guid.NewGuid(), new System.Collections.Generic.HashSet<string> { McpScopes.Library });
+
+        var result = await dispatcher.DispatchAsync(Encoding.UTF8.GetBytes("""{"jsonrpc":"2.0","id":1,"method":"prompts/list"}"""), library, default);
+
+        using var doc = JsonDocument.Parse(result.Body!);
+        Assert.Equal(3, doc.RootElement.GetProperty("result").GetProperty("prompts").GetArrayLength());
     }
 
     private const string StatelessMeta = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{}}";
