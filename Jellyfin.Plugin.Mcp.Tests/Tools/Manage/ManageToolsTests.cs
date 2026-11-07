@@ -428,4 +428,59 @@ public sealed class ManageToolsTests : IDisposable
 
         SchemaAssert.Conforms(tool, await tool.ExecuteAsync(Args($$"""{"action":"delete","playlistId":"{{playlist.Object.Id}}"}"""), _principal, CancellationToken.None));
     }
+
+    // A token limited to "Movies" while the user also sees "Kids": the playlist mixes one entry of each.
+    private (McpPrincipal Principal, Fakes.Movie Allowed, Fakes.Movie Hidden, Mock<Playlist> Playlist) MixedPlaylistForRestrictedToken()
+    {
+        var movies = new CollectionFolder { Id = Guid.NewGuid(), Name = "Movies", PhysicalFolderIds = [Guid.NewGuid()] };
+        var kids = new CollectionFolder { Id = Guid.NewGuid(), Name = "Kids", PhysicalFolderIds = [Guid.NewGuid()] };
+        _library.Setup(l => l.GetUserRootFolder()).Returns(new RestrictedWorld.RootFolder { Libraries = [movies, kids] });
+        var allowed = AddMovie();
+        var hidden = AddMovie();
+        _library.Setup(l => l.GetCollectionFolders(allowed)).Returns([movies]);
+        _library.Setup(l => l.GetCollectionFolders(hidden)).Returns([kids]);
+        var playlist = AddPlaylist(_user.Id);
+        playlist.Object.LinkedChildren = [LinkedChild.Create(hidden), LinkedChild.Create(allowed)];
+        playlist.Setup(p => p.GetChildren(It.IsAny<User>(), true, It.IsAny<InternalItemsQuery>())).Returns([hidden, allowed]);
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([hidden, allowed]);
+        var principal = new McpPrincipal(_user.Id, new HashSet<string> { McpScopes.Manage }) { LibraryIds = new HashSet<Guid> { movies.Id } };
+        return (principal, allowed, hidden, playlist);
+    }
+
+    [Fact]
+    public async Task ListPlaylists_RestrictedToken_ListsOnlyEntriesOfAllowedLibraries()
+    {
+        var (principal, allowed, hidden, playlist) = MixedPlaylistForRestrictedToken();
+
+        var result = await List().ExecuteAsync(Args($$"""{"playlistId":"{{playlist.Object.Id}}"}"""), principal, CancellationToken.None);
+
+        var json = Parse(result);
+        Assert.Equal(1, json.GetProperty("totalCount").GetInt32());
+        Assert.Equal(allowed.Id.ToString("N"), Assert.Single(json.GetProperty("items").EnumerateArray()).GetProperty("id").GetString());
+        Assert.DoesNotContain(hidden.Id.ToString("N"), result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_RestrictedToken_CannotRemoveEntryOfHiddenLibrary()
+    {
+        var (principal, _, hidden, playlist) = MixedPlaylistForRestrictedToken();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() => Manage().ExecuteAsync(
+            Args($$"""{"action":"remove_items","playlistId":"{{playlist.Object.Id}}","entryIds":["{{hidden.Id:N}}"]}"""), principal, CancellationToken.None));
+
+        Assert.Contains("'entryIds'", ex.Message, StringComparison.Ordinal);
+        NeverModified();
+    }
+
+    [Fact]
+    public async Task ManagePlaylist_RestrictedToken_CannotAddHiddenItem()
+    {
+        var (principal, _, hidden, playlist) = MixedPlaylistForRestrictedToken();
+
+        var ex = await Assert.ThrowsAsync<ToolException>(() => Manage().ExecuteAsync(
+            Args($$"""{"action":"add_items","playlistId":"{{playlist.Object.Id}}","itemIds":["{{hidden.Id}}"]}"""), principal, CancellationToken.None));
+
+        Assert.Equal("Item not found", ex.Message);
+        NeverModified();
+    }
 }

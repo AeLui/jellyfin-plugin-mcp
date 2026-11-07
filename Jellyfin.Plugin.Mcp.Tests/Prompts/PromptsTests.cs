@@ -32,6 +32,16 @@ public class PromptsTests
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 
+    [Theory]
+    [MemberData(nameof(LibraryPrompts))]
+    public void LibraryPrompts_RenderTheSameForLibraryRestrictedTokens(string name)
+    {
+        // Prompts only name tools; every item they lead to comes from a tool call, which applies the token's libraries.
+        var restricted = Library with { LibraryIds = new HashSet<Guid> { Guid.NewGuid() } };
+
+        Assert.Equal(Create(name).Render(PromptArguments.Empty, Library), Create(name).Render(PromptArguments.Empty, restricted));
+    }
+
     [Fact]
     public void Metadata_MatchesSpec()
     {
