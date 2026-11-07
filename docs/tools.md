@@ -224,7 +224,7 @@ Personal movie recommendations, grouped by reason, based on what the user recent
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| `libraryId` | string | no | | Restrict to one library. |
+| `libraryId` | string | no | | Base the recommendations on the movies watched or liked in this library. Suggestions can still come from any library the user can see. |
 | `categoryLimit` | integer | no | 5 | Number of categories, 1..10. |
 | `itemsPerCategory` | integer | no | 8 | Movies per category, 1..20. |
 

@@ -21,7 +21,7 @@ public sealed class MovieRecommendationsTool : LibraryToolBase
     private const int MaxItemsPerCategory = 20;
 
     private static readonly JsonElement Schema = JsonDocument.Parse(
-        """{"type":"object","properties":{"libraryId":{"type":"string","description":"Restrict to one library (GUID)."},"categoryLimit":{"type":"integer","minimum":1,"maximum":10,"description":"Number of categories (default 5)."},"itemsPerCategory":{"type":"integer","minimum":1,"maximum":20,"description":"Movies per category (default 8)."}}}""").RootElement.Clone();
+        """{"type":"object","properties":{"libraryId":{"type":"string","description":"Base the recommendations on the movies you watched or liked in this library (GUID); suggestions can come from any library you can see."},"categoryLimit":{"type":"integer","minimum":1,"maximum":10,"description":"Number of categories (default 5)."},"itemsPerCategory":{"type":"integer","minimum":1,"maximum":20,"description":"Movies per category (default 8)."}}}""").RootElement.Clone();
 
     private static readonly JsonElement ResultSchema = OutputSchemas.Object(
         "\"categories\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(

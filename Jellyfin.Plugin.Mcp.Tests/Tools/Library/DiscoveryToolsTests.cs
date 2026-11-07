@@ -190,6 +190,15 @@ public class DiscoveryToolsTests
         => new() { RecommendationType = type, BaselineItemName = baseline, CategoryId = Guid.NewGuid(), Items = items };
 
     [Fact]
+    public void MovieRecommendations_LibraryIdDescription_SaysSuggestionsMayComeFromAnyLibrary()
+    {
+        // Jellyfin v12.4 only applies the parent to the baseline movies; suggestions come from every library the user can see.
+        var description = Recommendations().InputSchema.GetProperty("properties").GetProperty("libraryId").GetProperty("description").GetString();
+
+        Assert.Contains("any library you can see", description, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MovieRecommendations_PassesDefaults()
     {
         RecommendationsReturn();
