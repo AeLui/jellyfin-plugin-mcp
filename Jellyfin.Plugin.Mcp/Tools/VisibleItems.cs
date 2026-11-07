@@ -59,7 +59,7 @@ public static class VisibleItems
         }
 
         var result = libraryManager.GetItemsResult(query);
-        var visible = result.Items.Where(i => IsVisibleTo(i, user)).ToList();
+        var visible = result.Items.Where(i => IsVisible(i, user)).ToList();
         if (visible.Count == result.Items.Count)
         {
             return result;
@@ -74,14 +74,20 @@ public static class VisibleItems
         return new QueryResult<BaseItem>(result.StartIndex, Math.Max(0, result.TotalRecordCount - (result.Items.Count - visible.Count)), visible);
     }
 
-    private static bool IsVisibleTo(BaseItem item, User user)
+    /// <summary>
+    /// Applies the visibility rule Jellyfin's own queries skip for playlists and collections.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="user">The user.</param>
+    /// <returns><c>true</c> when the user may see the item.</returns>
+    internal static bool IsVisible(BaseItem item, User user)
         => item is not (Playlist or BoxSet) || item.IsVisibleStandalone(user);
 
     private static QueryResult<BaseItem> Unpaged(ILibraryManager libraryManager, InternalItemsQuery query, User user, int startIndex, int? limit)
     {
         query.StartIndex = null;
         query.Limit = null;
-        var visible = libraryManager.GetItemsResult(query).Items.Where(i => IsVisibleTo(i, user)).ToList();
+        var visible = libraryManager.GetItemsResult(query).Items.Where(i => IsVisible(i, user)).ToList();
         var page = visible.Skip(startIndex);
         if (limit is { } take)
         {
