@@ -1,6 +1,6 @@
 # Tool reference
 
-22 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
+25 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
 
 ## Conventions
 
@@ -29,6 +29,9 @@ Summary of tools:
 | `jellyfin_next_up` | Next up | library | true / false / true |
 | `jellyfin_continue_watching` | Continue watching | library | true / false / true |
 | `jellyfin_watch_history` | Watch history | library | true / false / true |
+| `jellyfin_similar_items` | Find similar items | library | true / false / true |
+| `jellyfin_movie_recommendations` | Recommend movies | library | true / false / true |
+| `jellyfin_list_collections` | List collections | library | true / false / true |
 | `jellyfin_list_sessions` | List devices | playback | true / false / true |
 | `jellyfin_play` | Play on device | playback | false / false / false |
 | `jellyfin_playback_control` | Control playback | playback | false / false / true |
@@ -197,6 +200,57 @@ List items the user has played, most recently played first, with the last played
 ```
 ```json
 {"totalCount":230,"items":[{"id":"...","name":"Alien","type":"movie","played":true,"lastPlayedDate":"2026-10-30T21:14:02.0000000Z"}]}
+```
+
+### jellyfin_similar_items
+
+Find items similar to a movie, series, album, artist or trailer ("more like this"), using Jellyfin's similar-items engine. Results are a ranked list, so there is no `startIndex`; `totalCount` is the number of items returned. Remote similar-item providers are only used when an administrator enabled them for that library.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `itemId` | string | yes | | Movie, series, music album, music artist or trailer. An episode returns `Similar items are not available for episodes; use the series id`; other types return `Similar items are not available for this item type`. |
+| `limit` | integer | no | 20 | Clamped to 1..`Max page size`. |
+
+```json
+{"name":"jellyfin_similar_items","arguments":{"itemId":"a1b2...","limit":2}}
+```
+```json
+{"totalCount":2,"items":[{"id":"...","name":"Blade Runner 2049","type":"movie","year":2017},{"id":"...","name":"Ghost in the Shell","type":"movie","year":1995,"played":true}]}
+```
+
+### jellyfin_movie_recommendations
+
+Personal movie recommendations, grouped by reason, based on what the user recently watched and liked. Results vary between calls because Jellyfin picks the baseline movies at random.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `libraryId` | string | no | | Restrict to one library. |
+| `categoryLimit` | integer | no | 5 | Number of categories, 1..10. |
+| `itemsPerCategory` | integer | no | 8 | Movies per category, 1..20. |
+
+`reason` is one of `similar_to_recently_played`, `similar_to_liked_item`, `has_director_from_recently_played`, `has_actor_from_recently_played`, `has_liked_director`, `has_liked_actor`. `baseline` is the movie or person the category is based on. Categories with no movie the user can see are left out, so a user with no history gets `{"categories":[]}`.
+
+```json
+{"name":"jellyfin_movie_recommendations","arguments":{"categoryLimit":1,"itemsPerCategory":2}}
+```
+```json
+{"categories":[{"reason":"has_director_from_recently_played","baseline":"Ridley Scott","items":[{"id":"...","name":"Alien","type":"movie","year":1979},{"id":"...","name":"The Martian","type":"movie","year":2015}]}]}
+```
+
+### jellyfin_list_collections
+
+List the user's collections (box sets), or with `itemId` the collections that contain that item. Each entry is an item summary plus `childCount`, the number of items in the collection the user can see. Open a collection with `jellyfin_browse` using its id as `parentId`.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `itemId` | string | no | | Only collections containing this item. |
+| `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
+
+```json
+{"name":"jellyfin_list_collections","arguments":{"itemId":"a1b2..."}}
+```
+```json
+{"totalCount":1,"items":[{"id":"...","name":"Alien Collection","type":"box_set","childCount":4}]}
 ```
 
 ---

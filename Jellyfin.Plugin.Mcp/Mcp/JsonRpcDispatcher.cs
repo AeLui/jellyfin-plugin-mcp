@@ -17,6 +17,7 @@ public sealed partial class JsonRpcDispatcher
         + "Item ids come from other results: find items with jellyfin_search, jellyfin_browse or jellyfin_list_libraries before passing an id. "
         + "Before jellyfin_play or jellyfin_playback_control, call jellyfin_list_sessions to get the sessionId of the target device. "
         + "List results are paged: use startIndex with totalCount to fetch more. "
+        + "For recommendations use jellyfin_similar_items or jellyfin_movie_recommendations; open a collection from jellyfin_list_collections with jellyfin_browse. "
         + "Some tools may be missing when the token lacks their scope.";
 
     private readonly ToolRegistry _registry;

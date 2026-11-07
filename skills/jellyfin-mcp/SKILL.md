@@ -32,6 +32,9 @@ claude mcp add --transport http jellyfin https://<server>/mcp --header "Authoriz
 | Browse a library | `jellyfin_list_libraries`, then `jellyfin_browse` with that id |
 | "What should I watch?" | `jellyfin_next_up`, `jellyfin_continue_watching`, `jellyfin_recently_added`, `jellyfin_browse` with `filter: unplayed` |
 | What was watched | `jellyfin_watch_history` |
+| "More like this" | `jellyfin_similar_items` (movie, series, album or artist id; for an episode use the series) |
+| Personal movie picks | `jellyfin_movie_recommendations` (grouped by reason) |
+| Collections | `jellyfin_list_collections` (optional `itemId`), then `jellyfin_browse` with the collection id |
 | Play on a device | `jellyfin_list_sessions`, then `jellyfin_play` |
 | Pause, seek, skip | `jellyfin_playback_control` (`seek` needs `positionMinutes`) |
 | Playlists | `jellyfin_list_playlists`, `jellyfin_manage_playlist` |
@@ -42,7 +45,7 @@ claude mcp add --transport http jellyfin https://<server>/mcp --header "Authoriz
 
 **Play something:** search for the item, call `jellyfin_list_sessions`, pick the session by `deviceName`. If several devices match or none is named, ask which one. Then `jellyfin_play` with `mode` `now`, `next` or `last`. An empty session list means no controllable client is open; tell the user to open Jellyfin on the device.
 
-**Recommendations:** use the user's own data (next up, continue watching, unplayed items, history) and only suggest items returned by the tools, so everything you recommend is actually in their library.
+**Recommendations:** use the user's own data and only suggest items returned by the tools, so everything you recommend is actually in their library. For "something like X", search X and call `jellyfin_similar_items`; for open-ended movie picks, `jellyfin_movie_recommendations` and explain each pick with its `reason` and `baseline`; for shows, `jellyfin_next_up` and `jellyfin_continue_watching`. Filter on `played` when the user wants something new.
 
 **Lists:** results are paged (`limit` default 20, `startIndex`, `totalCount`). When `totalCount` is larger than what you fetched, say so or page further; do not present a first page as the whole library.
 
