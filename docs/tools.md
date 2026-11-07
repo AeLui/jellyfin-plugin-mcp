@@ -538,7 +538,7 @@ Read the server activity log (sign-ins, playback, scheduled tasks, errors), newe
 | `severity` | string | no | | `information`, `warning` or `error`; only entries of exactly that severity. |
 | `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
 
-`userName` is left out for system entries and deleted users.
+`userName` is left out for system entries and deleted users. Jellyfin writes the client IP address into the `shortOverview` of sign-in and session entries, so it appears here as it does in the dashboard. `since` must start with an ISO date (`2026-11-07` or `2026-11-07T08:00:00+01:00`); other formats are rejected.
 
 ```json
 {"name":"jellyfin_activity_log","arguments":{"since":"2026-11-07T00:00:00Z","severity":"error"}}

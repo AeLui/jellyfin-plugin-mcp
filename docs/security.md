@@ -40,7 +40,7 @@ Playlists and collections (box sets) are the exception to that scoping: the item
 
 ### Admin views
 
-`jellyfin_server_status`, `jellyfin_list_all_sessions` and `jellyfin_activity_log` are read-only and need the `admin` scope, so only administrators see them. They show other users' activity (who is watching what, sign-ins, errors) and the server's folder paths and disk space, which an administrator can already see in Jellyfin's dashboard. Client IP addresses are never returned. In `jellyfin_list_all_sessions`, an item the administrator cannot see in their own libraries is shown only by id and name.
+`jellyfin_server_status`, `jellyfin_list_all_sessions` and `jellyfin_activity_log` are read-only and need the `admin` scope, so only administrators see them. They show other users' activity (who is watching what, sign-ins, errors) and the server's folder paths and disk space, which an administrator can already see in Jellyfin's dashboard. `jellyfin_list_all_sessions` does not return client IP addresses, but Jellyfin writes the client IP into the short overview of sign-in and session activity entries, so `jellyfin_activity_log` shows it, as the dashboard does. In `jellyfin_list_all_sessions`, an item the administrator cannot see in their own libraries is shown only by id and name.
 
 ### Destructive tools
 
