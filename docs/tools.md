@@ -1,6 +1,6 @@
 # Tool reference
 
-26 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
+29 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
 
 ## Conventions
 
@@ -46,6 +46,9 @@ Summary of tools:
 | `jellyfin_run_task` | Run scheduled task | admin | false / true / false |
 | `jellyfin_scan_libraries` | Scan libraries | admin | false / false / true |
 | `jellyfin_refresh_item` | Refresh item metadata | admin | false / true / false |
+| `jellyfin_server_status` | Server status | admin | true / false / true |
+| `jellyfin_list_all_sessions` | List all sessions | admin | true / false / true |
+| `jellyfin_activity_log` | Activity log | admin | true / false / true |
 
 In the parameter tables, "req" means required.
 
@@ -495,4 +498,51 @@ Queue a metadata refresh for an item, optionally replacing its images and/or met
 ```
 ```json
 {"queued":true}
+```
+
+### jellyfin_server_status
+
+Show the server name, version, whether a restart is pending, the number of active sessions and running scheduled tasks, and the disk space of the server's own folders and of each library folder. Read-only. No parameters.
+
+Folder `name` is one of `program_data`, `web`, `image_cache`, `cache`, `log`, `internal_metadata`, `transcoding_temp`. `freeBytes` and `usedBytes` are left out when Jellyfin cannot read the drive.
+
+```json
+{"name":"jellyfin_server_status","arguments":{}}
+```
+```json
+{"serverName":"Living room","version":"12.4.0","hasPendingRestart":false,"activeSessionCount":3,"runningTaskCount":0,"storage":{"folders":[{"name":"program_data","path":"/config","freeBytes":51200000000,"usedBytes":8400000000}],"libraries":[{"id":"f137...","name":"Movies","folders":[{"path":"/media/movies","freeBytes":912000000000,"usedBytes":3088000000000}]}]}}
+```
+
+### jellyfin_list_all_sessions
+
+List the active sessions of all users, most recent activity first, with what each is playing and how: `playMethod` (`direct_play`, `direct_stream`, `transcode`) and, while transcoding, the codecs, bitrate and Jellyfin's transcode `reasons` in snake_case. Read-only: it cannot control other users' sessions. Client IP addresses are not returned. `nowPlaying` is an item summary when the administrator can see the item, otherwise only its id and name.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
+
+```json
+{"name":"jellyfin_list_all_sessions","arguments":{}}
+```
+```json
+{"totalCount":1,"items":[{"sessionId":"7c1d...","userName":"anna","deviceName":"Living room TV","client":"Jellyfin Android TV","lastActivity":"2026-11-07T20:14:02.0000000Z","nowPlaying":{"id":"a1b2...","name":"Blade Runner","type":"movie","year":1982},"isPaused":false,"positionMinutes":42.5,"playMethod":"transcode","transcoding":{"videoCodec":"h264","audioCodec":"aac","isVideoDirect":false,"isAudioDirect":true,"bitrate":8000000,"reasons":["video_codec_not_supported"]}}]}
+```
+
+### jellyfin_activity_log
+
+Read the server activity log (sign-ins, playback, scheduled tasks, errors), newest first. Read-only.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `since` | string | no | | ISO 8601 date-time; entries from then on. Without an offset it is taken as UTC. |
+| `severity` | string | no | | `information`, `warning` or `error`; only entries of exactly that severity. |
+| `limit`, `startIndex` | integer | no | 20, 0 | Paging. |
+
+`userName` is left out for system entries and deleted users.
+
+```json
+{"name":"jellyfin_activity_log","arguments":{"since":"2026-11-07T00:00:00Z","severity":"error"}}
+```
+```json
+{"totalCount":1,"items":[{"id":812,"date":"2026-11-07T03:00:12.0000000Z","name":"Scan Media Library failed","type":"ScheduledTaskFailed","severity":"error","shortOverview":"..."}]}
 ```

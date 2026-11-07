@@ -20,7 +20,7 @@ The plugin lets a token holder act on Jellyfin as one specific user, restricted 
 | `library` | Read-only browsing, search, details, history | Everything is limited to what the token's user may see. |
 | `playback` | List sessions, play, control, send messages | The user's own sessions only (see below). |
 | `manage` | Playlists, favorites, played state | The user's own watch state and favorites, plus playlists the user owns or may edit. |
-| `admin` | Users, tasks, scans, metadata refresh | Granted only to administrators and dropped at request time if the user stops being one. |
+| `admin` | Users, tasks, scans, metadata refresh, server status, all sessions, activity log | Granted only to administrators and dropped at request time if the user stops being one. |
 
 Start with `library` and add scopes per client.
 
@@ -37,6 +37,10 @@ Playlists and collections (box sets) are the exception to that scoping: the item
 ### Sessions
 
 `playback` tools act on active, remote-controllable sessions. A token can control sessions of its own user. Controlling another user's session requires both the `admin` scope and the Jellyfin permission "Allow remote control of other users" (`EnableRemoteControlOfOtherUsers`) on the token's user. Commands are sent without a controlling session, which makes Jellyfin skip its own permission check, so the plugin enforces ownership itself. A session you may not control returns the same `Session not found` as a wrong id.
+
+### Admin views
+
+`jellyfin_server_status`, `jellyfin_list_all_sessions` and `jellyfin_activity_log` are read-only and need the `admin` scope, so only administrators see them. They show other users' activity (who is watching what, sign-ins, errors) and the server's folder paths and disk space, which an administrator can already see in Jellyfin's dashboard. Client IP addresses are never returned. In `jellyfin_list_all_sessions`, an item the administrator cannot see in their own libraries is shown only by id and name.
 
 ### Destructive tools
 

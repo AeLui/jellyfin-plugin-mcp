@@ -41,6 +41,9 @@ claude mcp add --transport http jellyfin https://<server>/mcp --header "Authoriz
 | Playlists | `jellyfin_list_playlists`, `jellyfin_manage_playlist` |
 | Favorite / watched | `jellyfin_set_favorite`, `jellyfin_set_played` |
 | Admin | `jellyfin_list_tasks`, `jellyfin_run_task`, `jellyfin_scan_libraries`, `jellyfin_refresh_item` |
+| Who is watching, why it buffers | `jellyfin_list_all_sessions` (`playMethod`, `transcoding.reasons`) |
+| Server health, disk space | `jellyfin_server_status` |
+| What happened on the server | `jellyfin_activity_log` (`since`, `severity`) |
 
 ## Workflows
 

@@ -11,6 +11,6 @@ OAuth 2.1 (authorization server, dynamic client registration, PKCE with a Jellyf
 - MCP resources (for example library and item metadata as resources) and prompts.
 - Optional SSE streaming where useful.
 - More clients documented and tested (other desktop and IDE assistants).
-- More tools: user-scoped settings, richer admin views.
+- More tools: user-scoped settings.
 - Finer-grained, per-library token restrictions.
 - Jellyfin plugin catalog listing and automated multi-version compatibility builds when new Jellyfin ABIs ship.
