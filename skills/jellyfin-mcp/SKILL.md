@@ -37,6 +37,7 @@ claude mcp add --transport http jellyfin https://<server>/mcp --header "Authoriz
 | Collections | `jellyfin_list_collections` (optional `itemId`), then `jellyfin_browse` with the collection id |
 | Play on a device | `jellyfin_list_sessions`, then `jellyfin_play` |
 | Pause, seek, skip | `jellyfin_playback_control` (`seek` needs `positionMinutes`) |
+| Audio language, subtitles | `jellyfin_get_media_tracks`, then `jellyfin_play` (`audioStreamIndex`, `subtitleStreamIndex`) or `jellyfin_playback_control` (`set_audio_track`, `set_subtitle_track` with `streamIndex`) |
 | Playlists | `jellyfin_list_playlists`, `jellyfin_manage_playlist` |
 | Favorite / watched | `jellyfin_set_favorite`, `jellyfin_set_played` |
 | Admin | `jellyfin_list_tasks`, `jellyfin_run_task`, `jellyfin_scan_libraries`, `jellyfin_refresh_item` |
@@ -44,6 +45,8 @@ claude mcp add --transport http jellyfin https://<server>/mcp --header "Authoriz
 ## Workflows
 
 **Play something:** search for the item, call `jellyfin_list_sessions`, pick the session by `deviceName`. If several devices match or none is named, ask which one. Then `jellyfin_play` with `mode` `now`, `next` or `last`. An empty session list means no controllable client is open; tell the user to open Jellyfin on the device.
+
+**Audio and subtitles:** for "play X in Spanish with English subtitles", call `jellyfin_get_media_tracks` on the movie or episode and pick the track by `language` (3-letter codes like `spa`, `eng`) or `displayTitle`, then `jellyfin_play` with one item, mode `now`, `audioStreamIndex` and `subtitleStreamIndex` (`-1` = no subtitles). For something already playing, use `jellyfin_playback_control` with `set_audio_track` or `set_subtitle_track` on the item playing in that session. If no track matches the language, say so instead of picking another.
 
 **Recommendations:** use the user's own data and only suggest items returned by the tools, so everything you recommend is actually in their library. For "something like X", search X and call `jellyfin_similar_items`; for open-ended movie picks, `jellyfin_movie_recommendations` and explain each pick with its `reason` and `baseline`; for shows, `jellyfin_next_up` and `jellyfin_continue_watching`. Filter on `played` when the user wants something new.
 

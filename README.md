@@ -57,12 +57,12 @@ The token dialog in the plugin page generates both snippets for you. The Claude 
 
 ## Scopes and tools
 
-25 tools in four scopes. A token only sees the tools its scopes allow.
+26 tools in four scopes. A token only sees the tools its scopes allow.
 
 | Scope | Tools | Purpose |
 |---|---|---|
-| `library` | 12 | Read-only: search, browse, details, people, recent, next up, continue watching, history, similar items, movie recommendations, collections |
-| `playback` | 4 | List sessions, play, control playback, show a message |
+| `library` | 13 | Read-only: search, browse, details, people, recent, next up, continue watching, history, similar items, movie recommendations, collections, audio and subtitle tracks |
+| `playback` | 4 | List sessions, play (with audio and subtitle track choice), control playback and switch tracks, show a message |
 | `manage` | 4 | The user's own watch state and favorites, plus playlists the user owns or may edit |
 | `admin` | 5 | Users, scheduled tasks, library scan, metadata refresh (administrators only) |
 

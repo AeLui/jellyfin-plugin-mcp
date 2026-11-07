@@ -47,7 +47,7 @@ python3 -I -m unittest discover -s scripts
 3. Check every supplied item id with `ItemLookup.GetVisible(user, id)`; folder ids used as a query parent go through `GetVisibleContainer`, and library ids through `EnsureUserLibrary`.
 4. No manual registration is needed: `PluginServiceRegistrator` registers every non-abstract `IMcpTool` in the assembly.
 5. Write tests, including user scoping (a user must not reach items or sessions outside their access) and bad arguments.
-6. Update [tools.md](tools.md) and the tool-count test (currently 25 tools).
+6. Update [tools.md](tools.md) and the tool-count test (currently 26 tools).
 
 ## Tests
 
@@ -76,7 +76,7 @@ Checklist:
 6. `curl -i http://localhost:8096/mcp` answers 405.
 7. As admin, fetch the real root folder id from `GET /Items/Root` and pass it as `libraryId` to `jellyfin_search` and `jellyfin_recently_added` and as `parentId` to `jellyfin_browse` with the restricted user's token: each must answer `Item not found` and list nothing from the hidden library.
 8. With the restricted user's token, `jellyfin_browse` a normal library, the Playlists view and the Collections view (ids from `jellyfin_list_libraries`): the lists are not empty, and another user's private playlist and items of a hidden library must not appear. Also call `jellyfin_get_person` with an actor credited only in the hidden library: `Item not found`.
-9. Optional: with an admin token holding all scopes, `/mcp` lists 25 tools, each with a `title` and an `outputSchema`, and `tools/call` results carry `structuredContent`; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
+9. Optional: with an admin token holding all scopes, `/mcp` lists 26 tools, each with a `title` and an `outputSchema`, and `tools/call` results carry `structuredContent`; a `manage` token can create a playlist; with Log tool calls on, the Jellyfin log shows one line per call and no tokens.
 
 Fix any defect with a test first.
 

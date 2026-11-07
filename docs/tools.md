@@ -1,6 +1,6 @@
 # Tool reference
 
-25 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
+26 tools in four scopes. `tools/list` only returns the tools allowed by the token's scopes, and `tools/call` on an unknown or not-permitted tool is a JSON-RPC error (-32602, `Unknown tool: <name>`), not an `isError` result.
 
 ## Conventions
 
@@ -32,6 +32,7 @@ Summary of tools:
 | `jellyfin_similar_items` | Find similar items | library | true / false / true |
 | `jellyfin_movie_recommendations` | Recommend movies | library | true / false / true |
 | `jellyfin_list_collections` | List collections | library | true / false / true |
+| `jellyfin_get_media_tracks` | Get audio and subtitle tracks | library | true / false / true |
 | `jellyfin_list_sessions` | List devices | playback | true / false / true |
 | `jellyfin_play` | Play on device | playback | false / false / false |
 | `jellyfin_playback_control` | Control playback | playback | false / false / true |
@@ -253,6 +254,23 @@ List the user's collections (box sets), or with `itemId` the collections that co
 {"totalCount":1,"items":[{"id":"...","name":"Alien Collection","type":"box_set","childCount":4}]}
 ```
 
+### jellyfin_get_media_tracks
+
+List the audio and subtitle tracks of a movie, episode or other video, from its main media source (alternate versions are not covered). `index` is the value to pass to `jellyfin_play` (`audioStreamIndex`, `subtitleStreamIndex`) or `jellyfin_playback_control` (`streamIndex`). Other item types return `Tracks are only available for video items`.
+
+| Parameter | Type | Req | Default | Notes |
+|---|---|---|---|---|
+| `itemId` | string | yes | | Movie, episode or other video. |
+
+Audio tracks have `index`, `displayTitle`, `language`, `title`, `codec`, `channels`, `isDefault`, `isForced`; subtitle tracks have `index`, `displayTitle`, `language`, `title`, `codec`, `isDefault`, `isForced`, `isExternal`, `isHearingImpaired`. Missing values are omitted.
+
+```json
+{"name":"jellyfin_get_media_tracks","arguments":{"itemId":"a1b2..."}}
+```
+```json
+{"itemId":"a1b2...","audioTracks":[{"index":1,"displayTitle":"English - AAC - Stereo - Default","language":"eng","codec":"aac","channels":2,"isDefault":true,"isForced":false},{"index":2,"displayTitle":"Spanish - AAC - Stereo","language":"spa","title":"Spanish","codec":"aac","channels":2,"isDefault":false,"isForced":false}],"subtitleTracks":[{"index":3,"displayTitle":"English - SUBRIP","language":"eng","codec":"subrip","isDefault":false,"isForced":false,"isExternal":false,"isHearingImpaired":false}]}
+```
+
 ---
 
 ## Scope `playback`
@@ -272,7 +290,7 @@ List the active player sessions you can control, with what each is playing, as `
 
 ### jellyfin_play
 
-Play items on one of your sessions (now, next or at the end of the queue).
+Play items on one of your sessions (now, next or at the end of the queue), optionally with chosen audio and subtitle tracks.
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
@@ -280,23 +298,30 @@ Play items on one of your sessions (now, next or at the end of the queue).
 | `itemIds` | string[] | yes | | 1 to 100 item ids; all must be visible to the user. |
 | `mode` | string | no | `now` | `now`, `next` (play next), `last` (end of the queue). |
 | `startPositionMinutes` | integer | no | | Where to start, in minutes (not negative). |
+| `audioStreamIndex` | integer | no | | Audio track `index` from `jellyfin_get_media_tracks`. |
+| `subtitleStreamIndex` | integer | no | | Subtitle track `index` from `jellyfin_get_media_tracks`, or `-1` for no subtitles. |
+
+The track indexes are only accepted with exactly one item and `mode` `now` (Jellyfin applies them to the item it starts), and must be a track of that type on the item, for example `Invalid argument 'subtitleStreamIndex': no subtitle track with index 1`. The result echoes the indexes that were sent. Whether the device honors them depends on the client.
 
 ```json
-{"name":"jellyfin_play","arguments":{"sessionId":"7c1d...","itemIds":["a1b2..."],"mode":"now","startPositionMinutes":10}}
+{"name":"jellyfin_play","arguments":{"sessionId":"7c1d...","itemIds":["a1b2..."],"audioStreamIndex":2,"subtitleStreamIndex":3}}
 ```
 ```json
-{"sessionId":"7c1d...","mode":"now","itemCount":1}
+{"sessionId":"7c1d...","mode":"now","itemCount":1,"audioStreamIndex":2,"subtitleStreamIndex":3}
 ```
 
 ### jellyfin_playback_control
 
-Pause, unpause, stop, seek, or skip to the next or previous item on one of your sessions.
+Pause, unpause, stop, seek, skip to the next or previous item, or switch the audio or subtitle track on one of your sessions.
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
 | `sessionId` | string | yes | | From `jellyfin_list_sessions`. |
-| `command` | string | yes | | `pause`, `unpause`, `stop`, `seek`, `next`, `previous`. |
+| `command` | string | yes | | `pause`, `unpause`, `stop`, `seek`, `next`, `previous`, `set_audio_track`, `set_subtitle_track`. |
 | `positionMinutes` | number | for `seek` | | Target position in minutes, not negative. |
+| `streamIndex` | integer | for `set_audio_track`, `set_subtitle_track` | | Track `index` from `jellyfin_get_media_tracks` for the item playing in the session; `-1` turns subtitles off. Rejected for other commands. |
+
+For the track commands the session must be playing an item the user can see (`Nothing is playing on this session` otherwise), and the index must be a track of that type on it. The result adds `streamIndex`.
 
 ```json
 {"name":"jellyfin_playback_control","arguments":{"sessionId":"7c1d...","command":"seek","positionMinutes":62.5}}
