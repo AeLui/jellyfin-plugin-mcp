@@ -9,6 +9,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.3.0.0",
+        "changelog": "Adds three read-only library tools: jellyfin_similar_items (more like a movie, series, album or artist), jellyfin_movie_recommendations (personal recommendations grouped by reason) and jellyfin_list_collections (your collections, or those containing an item).",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/AeLui/jellyfin-plugin-mcp/releases/download/v0.3.0/jellyfin-plugin-mcp_0.3.0.0.zip",
+        "checksum": "be393531b02213f18c45871d0ccc2553",
+        "timestamp": "2026-11-07T02:52:26Z"
+      },
+      {
         "version": "0.2.0.0",
         "changelog": "Tools return structuredContent with a declared outputSchema, and every tool has a display title. Adds MCP protocol revision 2026-07-28 (stateless, with server/discover) next to 2025-11-25, 2025-06-18 and 2025-03-26. Validates the Origin header on /mcp, with a new \"Allowed origins\" setting for browser-based clients. Server instructions explain how the tools fit together. Breaking: jellyfin_list_tasks, jellyfin_list_users, jellyfin_list_libraries and jellyfin_list_sessions now return { \"items\": [...] } instead of a bare array.",
         "targetAbi": "12.4.0.0",
