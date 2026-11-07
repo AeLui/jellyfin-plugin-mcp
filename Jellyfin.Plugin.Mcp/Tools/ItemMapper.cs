@@ -42,6 +42,20 @@ public static class ItemMapper
     }
 
     /// <summary>
+    /// Maps a collection to its summary shape plus the number of children the user can see.
+    /// </summary>
+    /// <param name="item">The collection.</param>
+    /// <param name="data">The user's data for the collection, if any.</param>
+    /// <param name="childCount">The number of visible children.</param>
+    /// <returns>The summary with a <c>childCount</c> field.</returns>
+    public static object Collection(BaseItem item, UserItemData? data, int childCount)
+    {
+        var result = BuildSummary(item, data);
+        result["childCount"] = childCount;
+        return result;
+    }
+
+    /// <summary>
     /// Maps an item to its detailed shape.
     /// </summary>
     /// <param name="item">The item.</param>

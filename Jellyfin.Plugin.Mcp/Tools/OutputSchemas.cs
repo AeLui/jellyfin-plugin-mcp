@@ -70,6 +70,15 @@ internal static class OutputSchemas
         "items");
 
     /// <summary>
+    /// Gets the schema of a paged list of collection summaries with their visible child counts.
+    /// </summary>
+    public static JsonElement CollectionPage { get; } = Object(
+        "\"totalCount\":{\"type\":\"integer\"},\"items\":"
+            + ArrayOf(ObjectJson(SummaryProperties + ",\"childCount\":{\"type\":\"integer\",\"description\":\"Items in the collection that you can see.\"}", "id", "type", "childCount")),
+        "totalCount",
+        "items");
+
+    /// <summary>
     /// Builds an object schema that forbids undeclared properties.
     /// </summary>
     /// <param name="propertiesJson">The members of <c>properties</c>, without braces.</param>
