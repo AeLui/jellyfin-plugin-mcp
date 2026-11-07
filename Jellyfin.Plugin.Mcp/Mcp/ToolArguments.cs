@@ -84,6 +84,27 @@ public sealed class ToolArguments
     }
 
     /// <summary>
+    /// Gets an optional ISO 8601 date-time argument as UTC; a value without an offset is taken as UTC.
+    /// </summary>
+    /// <param name="name">The argument name.</param>
+    /// <returns>The value in UTC, or <c>null</c> when absent.</returns>
+    public DateTime? GetUtcDateTime(string name)
+    {
+        if (!TryGet(name, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value))
+        {
+            return value.UtcDateTime;
+        }
+
+        throw Invalid(name, "must be an ISO 8601 date-time");
+    }
+
+    /// <summary>
     /// Gets an optional integer argument.
     /// </summary>
     /// <param name="name">The argument name.</param>

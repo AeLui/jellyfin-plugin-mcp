@@ -83,6 +83,30 @@ public class ToolArgumentsTests
         Assert.Null(Args("{}").GetGuid("id"));
     }
 
+    [Theory]
+    [InlineData("2026-11-01T00:00:00Z")]
+    [InlineData("2026-11-01T02:00:00+02:00")]
+    [InlineData("2026-11-01T00:00:00")]
+    [InlineData("2026-11-01")]
+    public void GetUtcDateTime_ParsesIso8601AsUtc(string value)
+    {
+        var parsed = Args($$"""{"since":"{{value}}"}""").GetUtcDateTime("since");
+
+        Assert.Equal(new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc), parsed);
+        Assert.Equal(DateTimeKind.Utc, parsed!.Value.Kind);
+    }
+
+    [Theory]
+    [InlineData("""{"since":"yesterday"}""")]
+    [InlineData("""{"since":5}""")]
+    public void GetUtcDateTime_RejectsNonDates(string json)
+    {
+        var ex = Assert.Throws<ToolException>(() => Args(json).GetUtcDateTime("since"));
+
+        Assert.Equal("Invalid argument 'since': must be an ISO 8601 date-time", ex.Message);
+        Assert.Null(Args("{}").GetUtcDateTime("since"));
+    }
+
     [Fact]
     public void GetIntAndBool_ValidateTypes()
     {

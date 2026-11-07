@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Queries;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
@@ -15,10 +16,13 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Activity;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Querying;
 using MediaBrowser.Model.Session;
 using MediaBrowser.Model.System;
 using MediaBrowser.Model.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -35,6 +39,7 @@ public class AdminViewsTests
     private readonly Mock<ISessionManager> _sessionManager = new();
     private readonly Mock<ITaskManager> _tasks = new();
     private readonly Mock<ILibraryManager> _library = new();
+    private readonly Mock<IActivityManager> _activity = new();
     private readonly List<SessionInfo> _sessions = [];
     private readonly McpPrincipal _principal;
 
@@ -152,7 +157,9 @@ public class AdminViewsTests
 
     private ListAllSessionsTool AllSessions() => new(_users.Object, _settings.Object, _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object));
 
-    private IMcpTool[] AdminViews() => [Status(), AllSessions()];
+    private ActivityLogTool Activity() => new(_users.Object, _settings.Object, _activity.Object);
+
+    private IMcpTool[] AdminViews() => [Status(), AllSessions(), Activity()];
 
     [Fact]
     public void AdminViews_HiddenWithoutAdminScope()
@@ -288,5 +295,129 @@ public class AdminViewsTests
         using var doc = JsonDocument.Parse(result.Text);
         Assert.Equal(2, doc.RootElement.GetProperty("totalCount").GetInt32());
         Assert.Equal("old", Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray()).GetProperty("sessionId").GetString());
+    }
+
+    private List<ActivityLogQuery> ActivityReturns(int total, params ActivityLogEntry[] entries)
+    {
+        var queries = new List<ActivityLogQuery>();
+        _activity.Setup(a => a.GetPagedResultAsync(It.IsAny<ActivityLogQuery>()))
+            .Callback<ActivityLogQuery>(queries.Add)
+            .ReturnsAsync(new QueryResult<ActivityLogEntry>(0, total, entries));
+        return queries;
+    }
+
+    [Fact]
+    public async Task ActivityLog_PassesPagingAndFilters()
+    {
+        var queries = ActivityReturns(0);
+
+        await Activity().ExecuteAsync(Args("""{"since":"2026-11-01T00:00:00Z","severity":"warning","limit":10,"startIndex":5}"""), _principal, CancellationToken.None);
+
+        var q = Assert.Single(queries);
+        Assert.Equal(new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc), q.MinDate);
+        Assert.Equal(LogLevel.Warning, q.Severity);
+        Assert.Equal(5, q.Skip);
+        Assert.Equal(10, q.Limit);
+        Assert.Null(q.OrderBy);
+    }
+
+    [Fact]
+    public async Task ActivityLog_SinceWithOffset_QueriesUtc()
+    {
+        var queries = ActivityReturns(0);
+
+        await Activity().ExecuteAsync(Args("""{"since":"2026-11-01T02:00:00+02:00"}"""), _principal, CancellationToken.None);
+
+        Assert.Equal(new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc), Assert.Single(queries).MinDate);
+    }
+
+    [Fact]
+    public async Task ActivityLog_DefaultsToFirstPageWithoutFilters()
+    {
+        var queries = ActivityReturns(0);
+
+        await Activity().ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        var q = Assert.Single(queries);
+        Assert.Null(q.MinDate);
+        Assert.Null(q.Severity);
+        Assert.Equal(0, q.Skip);
+        Assert.Equal(20, q.Limit);
+    }
+
+    [Fact]
+    public async Task ActivityLog_MapsEntries()
+    {
+        var itemId = Guid.NewGuid().ToString("N");
+        ActivityReturns(
+            42,
+            new ActivityLogEntry("tester is playing Night Signal", "VideoPlayback", _user.Id)
+            {
+                Id = 7,
+                Date = new DateTime(2026, 11, 7, 9, 30, 0, DateTimeKind.Unspecified),
+                Severity = LogLevel.Information,
+                ShortOverview = "On TV",
+                ItemId = itemId,
+            });
+        var tool = Activity();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(42, doc.RootElement.GetProperty("totalCount").GetInt32());
+        var entry = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(7, entry.GetProperty("id").GetInt64());
+        Assert.StartsWith("2026-11-07T09:30:00", entry.GetProperty("date").GetString(), StringComparison.Ordinal);
+        Assert.EndsWith("Z", entry.GetProperty("date").GetString(), StringComparison.Ordinal);
+        Assert.Equal("VideoPlayback", entry.GetProperty("type").GetString());
+        Assert.Equal("information", entry.GetProperty("severity").GetString());
+        Assert.Equal("On TV", entry.GetProperty("shortOverview").GetString());
+        Assert.False(entry.TryGetProperty("overview", out _));
+        Assert.Equal("tester", entry.GetProperty("userName").GetString());
+        Assert.Equal(itemId, entry.GetProperty("itemId").GetString());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task ActivityLog_SystemAndDeletedUser_OmitUserName()
+    {
+        ActivityReturns(
+            2,
+            new ActivityLogEntry("Scan finished", "TaskCompleted", Guid.Empty) { Id = 1, Severity = LogLevel.Information },
+            new ActivityLogEntry("gone signed in", "AuthenticationSucceeded", Guid.NewGuid()) { Id = 2, Severity = LogLevel.Error });
+        var tool = Activity();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var items = doc.RootElement.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.All(items, i => Assert.False(i.TryGetProperty("userName", out _)));
+        Assert.Equal("error", items[1].GetProperty("severity").GetString());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Theory]
+    [InlineData("""{"since":"yesterday"}""", "'since'")]
+    [InlineData("""{"severity":"fatal"}""", "'severity'")]
+    [InlineData("""{"limit":"x"}""", "'limit'")]
+    public async Task ActivityLog_MalformedArguments_NameTheArgument(string json, string expected)
+    {
+        var ex = await Assert.ThrowsAsync<ToolException>(() => Activity().ExecuteAsync(Args(json), _principal, CancellationToken.None));
+
+        Assert.Contains(expected, ex.Message, StringComparison.Ordinal);
+        _activity.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ActivityLog_Empty_Conforms()
+    {
+        ActivityReturns(0);
+        var tool = Activity();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        Assert.Equal("""{"totalCount":0,"items":[]}""", result.Text);
+        SchemaAssert.Conforms(tool, result);
     }
 }
