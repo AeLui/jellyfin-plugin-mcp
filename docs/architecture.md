@@ -34,7 +34,7 @@ Rule: `Mcp/` must not reference any `Jellyfin.*` or `MediaBrowser.*` namespace. 
 
 1. Client sends `POST /mcp` with `Authorization: Bearer jmcp_...` and a JSON-RPC body.
 2. `McpController` checks the `Origin` header (`OriginPolicy`; a foreign browser origin gets 403 before authentication), then authenticates. Disabled plugin or not ready: 503. Rate limited: 429. Bad token: 401 with `WWW-Authenticate: Bearer`.
-3. `TokenAuthenticator` hashes the token, finds it, checks enabled and expiry, loads the Jellyfin user (must exist and not be disabled), intersects the token's scopes with the known scopes, drops `admin` if the user is not an administrator, and records last use. The result is an `McpPrincipal` (user id and scopes), recreated on every request.
+3. `TokenAuthenticator` hashes the token, finds it, checks enabled and expiry, loads the Jellyfin user (must exist and not be disabled), intersects the token's scopes with the known scopes, drops `admin` if the user is not an administrator or the token is limited to some libraries, and records last use. The result is an `McpPrincipal` (user id, scopes and allowed library ids), recreated on every request.
 4. `JsonRpcDispatcher` picks the protocol era from the `MCP-Protocol-Version` header (see Protocol support), then parses the body. Notifications get no response (HTTP 202 when nothing is returned). Handshake-era requests are routed to `initialize`, `ping`, `tools/list`, `tools/call`, `prompts/list` or `prompts/get`; stateless requests to `server/discover`, `tools/list`, `tools/call`, `prompts/list` or `prompts/get`.
 5. `tools/call` looks the tool up in the registry filtered by the principal's scopes, wraps the arguments in `ToolArguments`, and runs the tool. `ToolException` becomes an `isError` result with its message; any other exception becomes a generic `isError` result and is logged.
 6. The tool result is returned as `structuredContent` and, with the same JSON, as one text content block. Error results carry only the text.
@@ -56,7 +56,7 @@ Rule: `Mcp/` must not reference any `Jellyfin.*` or `MediaBrowser.*` namespace. 
 - **Stateless.** Fits Jellyfin's plugin model and horizontal simplicity: nothing to expire, nothing to leak between users, no sticky routing.
 - **Static bearer tokens (v1).** Works with Claude Code (supported); Claude Desktop via `mcp-remote` is expected to work but is not yet verified. OAuth 2.1 for claude.ai connectors was built and discarded; static tokens stay.
 - **Principal per request.** No cached identity, so revocation and demotion are immediate.
-- **User-aware lookups.** Every id goes through `ItemLookup.GetVisible`, which uses the user overload of `GetItemById`. See [security](security.md).
+- **User-aware lookups.** Tools resolve the caller with `GetScopedUser(principal)`, a `ScopedUser` (the Jellyfin user plus the token's allowed libraries). Every id goes through `ItemLookup.GetVisible(scope, id)`, which uses the user overload of `GetItemById` and then `LibraryRestriction`, and every list query through `VisibleItems.GetVisibleItemsResult(query, scope)`. Neither accepts a bare `User`, so a tool cannot skip the library restriction. See [security](security.md).
 - **Tokens in plugin config, hashed.** `Plugin.UpdateConfiguration` is overridden so the generic config API cannot change tokens; `TokenStore` writes them through a dedicated method under one lock, so a token created while `LastUsedAt` is being saved is never lost.
 - **Scopes decide tools.** A tool declares one required scope; the registry hides tools the token cannot use.
 

@@ -44,9 +44,9 @@ python3 -I -m unittest discover -s scripts
 
 1. Create a class in `Tools/<Scope>/` deriving from that scope's base (`LibraryToolBase`, `PlaybackToolBase`, `ManageToolBase`, `AdminToolBase`), which derive from `JellyfinToolBase`.
 2. Define `Name`, `Description`, a JSON `InputSchema`, `Annotations` and `ExecuteAsync`. Parse arguments only through `ToolArguments`; throw `ToolException` for user errors.
-3. Check every supplied item id with `ItemLookup.GetVisible(user, id)`; folder ids used as a query parent go through `GetVisibleContainer`, and library ids through `EnsureUserLibrary`.
+3. Resolve the caller with `GetScopedUser(principal)` and check every supplied item id with `ItemLookup.GetVisible(scope, id)`; run list queries through `VisibleItems.GetVisibleItemsResult(query, scope)`, and filter results of other Jellyfin services (similar items, next up, playlist entries) with `ItemLookup.IsAllowed`; folder ids used as a query parent go through `GetVisibleContainer`, and library ids through `EnsureUserLibrary`.
 4. No manual registration is needed: `PluginServiceRegistrator` registers every non-abstract `IMcpTool` in the assembly.
-5. Write tests, including user scoping (a user must not reach items or sessions outside their access) and bad arguments.
+5. Write tests, including user scoping (a user must not reach items or sessions outside their access), a library-restricted token (`RestrictedWorld` in the tests sets one up) and bad arguments.
 6. Update [tools.md](tools.md) and the tool-count test (currently 29 tools).
 
 ## Tests

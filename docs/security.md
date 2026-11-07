@@ -2,7 +2,7 @@
 
 ## Model in one paragraph
 
-The plugin lets a token holder act on Jellyfin as one specific user, restricted to the scopes granted to the token. It never grants more than that user could do in Jellyfin itself, and the `admin` scope additionally requires the user to be an administrator. Anyone who holds a token holds that access, so treat tokens like passwords.
+The plugin lets a token holder act on Jellyfin as one specific user, restricted to the scopes granted to the token and, optionally, to some of that user's libraries. It never grants more than that user could do in Jellyfin itself, and the `admin` scope additionally requires the user to be an administrator. Anyone who holds a token holds that access, so treat tokens like passwords.
 
 ## Tokens
 
@@ -33,6 +33,17 @@ Every user-supplied item id (item, parent, library, series, person, playlist ent
 `InternalItemsQuery` with `ItemIds` or `ParentId` is deliberately not used for this check: in Jellyfin 12.4 such a query does not enforce library-folder access, so a guessed id could leak an item from a hidden library. Queries without those fields are scoped by Jellyfin to the user's libraries, and list results are always built from a user-scoped query.
 
 Playlists and collections (box sets) are the exception to that scoping: the item query has no owner or share filter for playlists, and Jellyfin's own post-filter (`IsVisibleStandalone(user)`) is skipped when a query is run directly. Every list tool (`browse`, `search`, `recently_added`, `continue_watching`, `watch_history`, `get_person`) therefore runs through a shared helper that drops any playlist or collection the user cannot see (another user's private playlist, a collection outside the user's libraries) and keeps `totalCount` exact. `jellyfin_search` leaves playlists and collections out unless `types` asks for them. When `types` mixes them with other kinds the SQL paging is kept, so `totalCount` can slightly overcount by hidden items on later pages. By-id access (`get_item`, ...) already applies the same check inside `GetItemById<BaseItem>(id, user)`, and `jellyfin_list_playlists` uses `IPlaylistManager.GetPlaylists(userId)`, which filters by `IsVisible(user)`.
+
+### Library-restricted tokens
+
+A token can be limited to some of its user's media libraries (the `LibraryIds` stored with the token; empty means every library the user can access, which is also how tokens created before this option load). The restriction only narrows the user's own access: an item must pass every check above and also belong to an allowed library.
+
+- **Creation**: every id must be one of the user's media libraries, the children of the user root folder that the user can open (`GetUserRootFolder().GetChildren(user, true)`), excluding the collections and playlists folders. Anything else is a 400. The `admin` scope cannot be combined with a library list (400): the admin tools act on the whole server (all sessions, users, tasks, scans, activity log), so a limit could not hold for them.
+- **At request time**: the allowed list is intersected again with the libraries the user can open now, so removing a library from the user also removes it from the token. A restricted token never gets the `admin` scope, even if one was stored by hand; it keeps its other scopes. Prompts follow the scopes (`library_health` disappears with `admin`) and only name tools, so they cannot bypass the restriction.
+- **Membership**: an item belongs to the libraries `ILibraryManager.GetCollectionFolders(item)` returns, the same check Jellyfin uses for a user's enabled folders (`BaseItem.IsVisibleStandaloneInternal`). Lookups by id (`ItemLookup`) apply it after the user-aware `GetItemById<BaseItem>(id, user)`, so an item of another library answers `Item not found` exactly like a missing one.
+- **Queries**: list queries without a parent get `InternalItemsQuery.TopParentIds` set to the allowed libraries' physical folder ids (what `LibraryManager.AddUserToQuery` would set for all of the user's libraries), plus the user's collections and playlists folders. Because a preset `TopParentIds` makes Jellyfin skip its own scoping, the plugin computes it from the user's own libraries only. Queries with a parent run only after the parent was checked. `totalCount` is exact: whenever items have to be checked one by one, the query is run unpaged and paged in memory.
+- **Items outside libraries**: a playlist or collection is visible when it is empty or holds at least one entry of an allowed library, and only those entries are listed, counted, played, marked played or copied into another playlist. People, artists, genres and studios are visible only when an item of an allowed library refers to them (a one-row probe query), which also covers `jellyfin_search` with `types: ["music_artist"]`, where Jellyfin's own library filter exempts artists.
+- **Per tool**: `jellyfin_list_libraries` returns the allowed libraries themselves rather than the user's views (a grouped view can merge hidden libraries). `jellyfin_next_up` walks only the allowed libraries. `jellyfin_similar_items` and `jellyfin_movie_recommendations` filter Jellyfin's suggestions; recommendations without `libraryId` are computed per allowed library, so no baseline movie or person comes from another library. `jellyfin_list_sessions` still lists the user's devices, but a session playing an item outside the allowed libraries shows no `nowPlaying` and position 0; playback commands still work on it, while switching its audio or subtitle track answers `Item not found`.
 
 ### Sessions
 
@@ -66,7 +77,7 @@ MCP clients are expected to ask for confirmation on tools annotated destructive;
 
 - Prefer a trusted LAN or VPN. If the server is reachable from the internet, put it behind HTTPS (tokens travel in a header) and consider restricting `/mcp` at the proxy by IP.
 - Use one token per client, scoped minimally, with an expiry.
-- Create a dedicated, low-privilege Jellyfin user for assistants that do not need your personal watch state, and limit its libraries.
+- Create a dedicated, low-privilege Jellyfin user for assistants that do not need your personal watch state, and limit its libraries. To keep your own user but hide some libraries from one client, limit that client's token to the libraries it needs.
 - Revoke tokens you no longer use. The plugin page shows prefix and last-used time to identify them.
 - Turn on **Log tool calls** if you want an audit trail.
 
@@ -78,6 +89,7 @@ MCP clients are expected to ask for confirmation on tools annotated destructive;
 | Token guessing | 256 bits of randomness plus the per-IP failure limiter. |
 | Privilege escalation to admin | `admin` scope only for administrators, re-checked on every request. |
 | Access to hidden libraries or rated-out content | User-aware item lookups for every id; hidden looks like missing. |
+| A library-limited token reaching other libraries | Library check after every lookup, `TopParentIds` on every query, per-item checks for playlists, collections and by-name items, no `admin` scope. |
 | Controlling other people's playback | Session ownership, plus admin scope and remote-control permission for foreign sessions. |
 | Tampering with tokens via the generic plugin config API | `UpdateConfiguration` cannot change tokens. |
 | Prompt injection through media metadata | Not prevented by the plugin: text in media metadata (titles, overviews) is passed to the assistant and may contain injected instructions. Mitigations are least-privilege scopes, destructive-tool annotations and client-side confirmation of tool calls. |

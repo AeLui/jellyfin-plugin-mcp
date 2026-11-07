@@ -35,11 +35,12 @@ Create a token with **New token**:
 - **Name**: a label (1 to 100 characters).
 - **User**: the Jellyfin user the token acts as. Every call is made as this user.
 - **Scopes**: `library`, `playback`, `manage`, `admin`. The `admin` scope can only be granted to a Jellyfin administrator, and is ignored at request time if the user is no longer one.
+- **Libraries** (optional): tick some of the user's media libraries to limit the token to them. Leave all unticked for every library the user can access. A limited token cannot have the `admin` scope (the admin tools act on the whole server), so the box is disabled while libraries are ticked. Collections and playlists are not libraries here: the token sees those that hold at least one entry of its libraries, with only those entries. See [security.md](security.md#library-restricted-tokens).
 - **Expires**: never, 30 days, 90 days or 1 year.
 
 The full token (`jmcp_...`) is displayed once, together with ready-to-use snippets for Claude Code and Claude Desktop. Only a SHA-256 hash is stored, so a lost token cannot be recovered: revoke it and create a new one. Revoking takes effect on the next request.
 
-Give each client its own token and grant only the scopes it needs; start with `library`.
+Give each client its own token and grant only the scopes it needs; start with `library`. The token table shows each token's libraries (`all` when it is not limited). Tokens created before library limits existed keep access to all of their user's libraries.
 
 ## Connecting clients
 

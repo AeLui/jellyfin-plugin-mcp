@@ -11,7 +11,8 @@
 - **Titles**: every tool has a short display `title`, also repeated in `annotations.title`.
 - **Errors** are results with `isError: true`, a text message and no `structuredContent`, for example `Invalid argument 'limit': must be an integer`, `Item not found` or `Session not found`. Unexpected failures return `Internal error while running <tool>` without details.
 - **Paging**: list tools take `limit` (integer, default 20, clamped to 1..`Max page size`, default 100) and `startIndex` (integer, default 0) and return `{ "totalCount": n, "items": [...] }`.
-- **Visibility**: every user-supplied item id is checked against the token user's library access and parental rating. An item the user cannot see is reported as `Item not found`, exactly like an id that does not exist.
+- **Visibility**: every user-supplied item id is checked against the token user's library access and parental rating, and against the token's libraries when it is limited to some. An item the user or the token cannot see is reported as `Item not found`, exactly like an id that does not exist, and lists leave it out of both `items` and `totalCount`.
+- **Library-limited tokens**: `jellyfin_list_libraries` returns only the token's libraries (the libraries themselves, never a grouped view), playlists and collections appear only when they hold an entry of those libraries and list only those entries, people and artists only when credited on an item of those libraries, and `jellyfin_list_sessions` leaves out `nowPlaying` (and reports position 0) while a session plays something outside them. Playing, marking played or adding to a playlist a whole playlist or collection uses only its visible entries. Such a token never has the admin tools. See [security.md](security.md#library-restricted-tokens).
 - **Item summary** (used in `items`): `id`, `name`, `type` (snake_case), `year`, `seriesName`, `seasonNumber`, `episodeNumber`, `runtimeMinutes`, `communityRating`, `officialRating`, and the user's `played`, `favorite`, `playbackPositionMinutes`, `lastPlayedDate`.
 
 The example results below are illustrative, not captured from a live server.
@@ -134,7 +135,7 @@ Either `personId` or `name` is required. People belong to no library, so only th
 
 ### jellyfin_list_libraries
 
-List the media libraries the user can access, with their ids and collection types, as `{ "items": [...] }` (not paged). No parameters.
+List the media libraries the user can access, with their ids and collection types, as `{ "items": [...] }` (not paged). No parameters. For a token limited to some libraries, only those libraries.
 
 ```json
 {"name":"jellyfin_list_libraries","arguments":{}}
@@ -228,7 +229,7 @@ Personal movie recommendations, grouped by reason, based on what the user recent
 
 | Parameter | Type | Req | Default | Notes |
 |---|---|---|---|---|
-| `libraryId` | string | no | | Base the recommendations on the movies watched or liked in this library. Suggestions can still come from any library the user can see. |
+| `libraryId` | string | no | | Base the recommendations on the movies watched or liked in this library. Suggestions can still come from any library the user can see (for a library-limited token, only from its libraries; without `libraryId` such a token gets recommendations based on each of its libraries in turn). |
 | `categoryLimit` | integer | no | 5 | Number of categories, 1..10. |
 | `itemsPerCategory` | integer | no | 8 | Movies per category, 1..20. |
 
