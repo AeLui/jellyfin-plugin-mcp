@@ -20,7 +20,7 @@ public class JsonRpcDispatcherStatelessTests
     private static readonly McpPrincipal Principal = new(Guid.NewGuid(), new HashSet<string> { McpScopes.Library });
 
     private static JsonRpcDispatcher Dispatcher()
-        => new(new ToolRegistry(new IMcpTool[] { new FakeTool("jellyfin_t", McpScopes.Library) }), new McpServerInfo("jellyfin-mcp", "1.2.3"));
+        => new(new ToolRegistry(new IMcpTool[] { new FakeTool("jellyfin_t", McpScopes.Library) }), new PromptRegistry(Array.Empty<IMcpPrompt>()), new McpServerInfo("jellyfin-mcp", "1.2.3"));
 
     private static string Request(string method, string? extraParams = null, int id = 1)
         => "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"" + method + "\",\"params\":{" + (extraParams is null ? string.Empty : extraParams + ",") + Meta + "}}";

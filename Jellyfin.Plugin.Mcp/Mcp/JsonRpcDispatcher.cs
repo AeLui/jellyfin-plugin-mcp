@@ -22,6 +22,7 @@ public sealed partial class JsonRpcDispatcher
         + "Some tools may be missing when the token lacks their scope.";
 
     private readonly ToolRegistry _registry;
+    private readonly PromptRegistry _prompts;
     private readonly McpServerInfo _info;
     private readonly Action<string, Exception>? _onToolFailure;
     private readonly Action<ToolCallLog>? _onToolCall;
@@ -30,18 +31,22 @@ public sealed partial class JsonRpcDispatcher
     /// Initializes a new instance of the <see cref="JsonRpcDispatcher"/> class.
     /// </summary>
     /// <param name="registry">The tool registry.</param>
+    /// <param name="prompts">The prompt registry.</param>
     /// <param name="info">The server identity.</param>
     /// <param name="onToolFailure">Optional hook invoked with the tool name and the exception when a tool throws an unexpected exception.</param>
     /// <param name="onToolCall">Optional hook invoked after every <c>tools/call</c> that reached a tool; it never receives arguments.</param>
     public JsonRpcDispatcher(
         ToolRegistry registry,
+        PromptRegistry prompts,
         McpServerInfo info,
         Action<string, Exception>? onToolFailure = null,
         Action<ToolCallLog>? onToolCall = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(prompts);
         ArgumentNullException.ThrowIfNull(info);
         _registry = registry;
+        _prompts = prompts;
         _info = info;
         _onToolFailure = onToolFailure;
         _onToolCall = onToolCall;
@@ -166,6 +171,8 @@ public sealed partial class JsonRpcDispatcher
                 }),
                 "tools/list" => JsonRpcMessages.Success(responseId, writer => WriteToolsList(writer, principal, false)),
                 "tools/call" => await HandleToolsCallAsync(responseId, parameters, principal, false, ct).ConfigureAwait(false),
+                "prompts/list" => JsonRpcMessages.Success(responseId, writer => WritePromptsList(writer, principal, false)),
+                "prompts/get" => HandlePromptsGet(responseId, parameters, principal, false),
                 _ => JsonRpcMessages.Error(responseId, JsonRpcErrorCodes.MethodNotFound, "Method not found: " + method),
             };
         }
@@ -321,6 +328,9 @@ public sealed partial class JsonRpcDispatcher
         writer.WriteString("protocolVersion", ProtocolVersions.Negotiate(requested));
         writer.WriteStartObject("capabilities");
         writer.WriteStartObject("tools");
+        writer.WriteBoolean("listChanged", false);
+        writer.WriteEndObject();
+        writer.WriteStartObject("prompts");
         writer.WriteBoolean("listChanged", false);
         writer.WriteEndObject();
         writer.WriteEndObject();

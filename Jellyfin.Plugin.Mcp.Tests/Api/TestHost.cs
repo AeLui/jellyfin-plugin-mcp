@@ -78,6 +78,7 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped(sp => new JsonRpcDispatcher(
             sp.GetRequiredService<ToolRegistry>(),
+            new PromptRegistry(Array.Empty<IMcpPrompt>()),
             new McpServerInfo("jellyfin-mcp", "1.0.0")));
 
         var app = builder.Build();

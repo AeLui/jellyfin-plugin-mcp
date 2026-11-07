@@ -59,6 +59,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Jellyfin.Plugin.Mcp");
             return new JsonRpcDispatcher(
                 sp.GetRequiredService<ToolRegistry>(),
+                new PromptRegistry(Array.Empty<IMcpPrompt>()),
                 sp.GetRequiredService<McpServerInfo>(),
                 (toolName, exception) => McpLog.ToolFailure(logger, exception, toolName),
                 call =>

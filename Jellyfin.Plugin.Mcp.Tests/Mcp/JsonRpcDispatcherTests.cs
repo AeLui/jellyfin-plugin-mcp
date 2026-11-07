@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,7 +18,7 @@ public class JsonRpcDispatcherTests
     private static JsonRpcDispatcher CreateDispatcher(
         System.Collections.Generic.IEnumerable<IMcpTool>? tools = null,
         Action<string, Exception>? onToolFailure = null)
-        => new(new ToolRegistry(tools ?? Array.Empty<IMcpTool>()), new McpServerInfo("jellyfin-mcp", "1.2.3"), onToolFailure);
+        => new(new ToolRegistry(tools ?? Array.Empty<IMcpTool>()), new PromptRegistry(Array.Empty<IMcpPrompt>()), new McpServerInfo("jellyfin-mcp", "1.2.3"), onToolFailure);
 
     private static async Task<DispatchResult> SendAsync(string json)
     {
@@ -62,13 +63,13 @@ public class JsonRpcDispatcherTests
     }
 
     [Fact]
-    public async Task Initialize_AdvertisesToolsOnly()
+    public async Task Initialize_AdvertisesToolsAndPromptsOnly()
     {
         var result = await SendAsync("""{"jsonrpc":"2.0","id":"a","method":"initialize","params":{}}""");
 
         var payload = Parse(result).GetProperty("result");
         var capabilities = payload.GetProperty("capabilities");
-        Assert.Single(capabilities.EnumerateObject());
+        Assert.Equal(new[] { "tools", "prompts" }, capabilities.EnumerateObject().Select(p => p.Name));
         Assert.False(capabilities.GetProperty("tools").GetProperty("listChanged").GetBoolean());
         Assert.Equal("jellyfin-mcp", payload.GetProperty("serverInfo").GetProperty("name").GetString());
         Assert.Equal("1.2.3", payload.GetProperty("serverInfo").GetProperty("version").GetString());
@@ -399,7 +400,7 @@ public class JsonRpcDispatcherTests
     {
         var calls = new System.Collections.Generic.List<ToolCallLog>();
         var tool = new FakeTool("jellyfin_t", McpScopes.Library);
-        var dispatcher = new JsonRpcDispatcher(new ToolRegistry(new IMcpTool[] { tool }), new McpServerInfo("jellyfin-mcp", "1"), null, calls.Add);
+        var dispatcher = new JsonRpcDispatcher(new ToolRegistry(new IMcpTool[] { tool }), new PromptRegistry(Array.Empty<IMcpPrompt>()), new McpServerInfo("jellyfin-mcp", "1"), null, calls.Add);
 
         await CallAsync(dispatcher, """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jellyfin_t","arguments":{"q":"secret"}}}""");
 
@@ -415,6 +416,7 @@ public class JsonRpcDispatcherTests
         var tool = new FakeTool("jellyfin_t", McpScopes.Library);
         var dispatcher = new JsonRpcDispatcher(
             new ToolRegistry(new IMcpTool[] { tool }),
+            new PromptRegistry(Array.Empty<IMcpPrompt>()),
             new McpServerInfo("jellyfin-mcp", "1"),
             null,
             _ => throw new InvalidOperationException("hook broke"));
