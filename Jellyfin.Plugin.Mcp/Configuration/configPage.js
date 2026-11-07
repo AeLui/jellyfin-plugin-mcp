@@ -93,6 +93,8 @@ export default function (view) {
             cell(row, token.Name);
             cell(row, token.UserName || '(deleted user)');
             cell(row, (token.Scopes || []).join(', '));
+            const libraries = token.Libraries || [];
+            cell(row, libraries.length === 0 ? 'all' : libraries.map((l) => l.Name || '(deleted library)').join(', '));
             cell(row, token.Prefix + '...');
             cell(row, formatDate(token.CreatedAt));
             cell(row, formatDate(token.LastUsedAt));
@@ -132,14 +134,70 @@ export default function (view) {
         }
     }
 
+    function selectedLibraries() {
+        return Array.from(view.querySelectorAll('#mcpLibraries input[type=checkbox]'))
+            .filter((box) => box.checked)
+            .map((box) => box.dataset.library);
+    }
+
+    // The admin scope needs an administrator and cannot be combined with a library restriction
+    // (admin tools act on the whole server); the server rejects both cases too.
     function updateAdminScope() {
         const user = users.find((u) => u.Id === $('mcpTokenUser').value);
         const isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+        const allowed = isAdmin && selectedLibraries().length === 0;
         const box = $('mcpScopeAdmin');
-        box.disabled = !isAdmin;
-        if (!isAdmin) {
+        box.disabled = !allowed;
+        if (!allowed) {
             box.checked = false;
         }
+    }
+
+    function renderLibraries(libraries) {
+        const list = $('mcpLibraries');
+        list.textContent = '';
+        $('mcpNoLibraries').hidden = libraries.length > 0;
+        libraries.forEach((library) => {
+            const container = document.createElement('div');
+            container.className = 'checkboxContainer';
+            const label = document.createElement('label');
+            label.className = 'emby-checkbox-label';
+            const box = document.createElement('input', { is: 'emby-checkbox' });
+            box.setAttribute('is', 'emby-checkbox');
+            box.type = 'checkbox';
+            box.dataset.library = library.Id;
+            box.addEventListener('change', updateAdminScope);
+            const text = document.createElement('span');
+            text.textContent = library.CollectionType ? library.Name + ' (' + library.CollectionType + ')' : library.Name;
+            label.appendChild(box);
+            label.appendChild(text);
+            container.appendChild(label);
+            list.appendChild(container);
+        });
+        updateAdminScope();
+    }
+
+    async function loadLibraries() {
+        const userId = $('mcpTokenUser').value;
+        renderLibraries([]);
+        $('mcpNoLibraries').hidden = true;
+        if (!userId) {
+            return;
+        }
+
+        try {
+            const libraries = await tokenRequest('GET', TOKENS_PATH + '/Libraries?userId=' + encodeURIComponent(userId));
+            if ($('mcpTokenUser').value === userId) {
+                renderLibraries(libraries);
+            }
+        } catch (e) {
+            toast('Could not load the libraries of this user.');
+        }
+    }
+
+    function onUserChange() {
+        updateAdminScope();
+        return loadLibraries();
     }
 
     function fillUsers() {
@@ -151,7 +209,7 @@ export default function (view) {
             option.textContent = user.Name;
             select.appendChild(option);
         });
-        updateAdminScope();
+        return onUserChange();
     }
 
     function clearTokenDialog() {
@@ -186,6 +244,7 @@ export default function (view) {
             return;
         }
 
+        const libraryIds = selectedLibraries();
         const expiry = $('mcpTokenExpiry').value;
         Dashboard.showLoadingMsg();
         try {
@@ -193,12 +252,13 @@ export default function (view) {
                 Name: $('mcpTokenName').value.trim(),
                 UserId: $('mcpTokenUser').value,
                 Scopes: scopes,
+                LibraryIds: libraryIds,
                 ExpiresInDays: expiry === '' ? null : parseInt(expiry, 10)
             });
             $('mcpTokenName').value = '';
             showTokenDialog(created.Plaintext);
         } catch (e) {
-            toast('Could not create the token. Check the name, user and scopes.');
+            toast('Could not create the token. Check the name, user, scopes and libraries.');
             return;
         } finally {
             Dashboard.hideLoadingMsg();
@@ -243,7 +303,7 @@ export default function (view) {
             $('mcpLogToolCalls').checked = config.LogToolCalls;
             $('mcpAllowedOrigins').value = (config.AllowedOrigins || []).join('\n');
             users = userList;
-            fillUsers();
+            await fillUsers();
             await loadTokens();
         } catch (e) {
             toast('Could not load the MCP Server configuration.');
@@ -254,7 +314,7 @@ export default function (view) {
 
     $('mcpSettingsForm').addEventListener('submit', saveSettings);
     $('mcpTokenForm').addEventListener('submit', createToken);
-    $('mcpTokenUser').addEventListener('change', updateAdminScope);
+    $('mcpTokenUser').addEventListener('change', onUserChange);
     $('mcpCopyUrl').addEventListener('click', () => copyFrom($('mcpEndpointUrl')));
     $('mcpCopyToken').addEventListener('click', () => copyFrom($('mcpDlgToken')));
     $('mcpCopyCode').addEventListener('click', () => copyFrom($('mcpDlgCode')));

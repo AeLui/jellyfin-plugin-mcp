@@ -62,6 +62,7 @@
                                     <th>Name</th>
                                     <th>User</th>
                                     <th>Scopes</th>
+                                    <th>Libraries</th>
                                     <th>Prefix</th>
                                     <th>Created</th>
                                     <th>Last used</th>
@@ -109,6 +110,12 @@
                                     <span>admin (server tasks, users; administrators only)</span>
                                 </label>
                             </div>
+                        </div>
+                        <div class="verticalSection">
+                            <h3 class="checkboxListLabel">Libraries</h3>
+                            <div id="mcpLibraries"></div>
+                            <p id="mcpNoLibraries" class="fieldDescription" hidden>This user has no libraries to choose from.</p>
+                            <div class="fieldDescription">Optional. Leave all unchecked to give the token every library the user can access. When some are checked, the token only sees items in those libraries (playlists and collections show only their entries from them), and the admin scope is not available.</div>
                         </div>
                         <div class="selectContainer">
                             <label class="selectLabel" for="mcpTokenExpiry">Expires</label>
