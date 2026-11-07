@@ -48,6 +48,18 @@ public sealed class ItemLookup
     }
 
     /// <summary>
+    /// Finds an item the user can see, like <see cref="GetVisible"/> but without failing.
+    /// </summary>
+    /// <param name="user">The user.</param>
+    /// <param name="id">The item id.</param>
+    /// <returns>The item, or <c>null</c> when it does not exist or the user cannot see it.</returns>
+    public BaseItem? FindVisible(User user, Guid id)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return _libraryManager.GetItemById<BaseItem>(id, user);
+    }
+
+    /// <summary>
     /// Gets a folder the user may use as the parent of a query.
     /// </summary>
     /// <remarks>

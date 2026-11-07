@@ -8,10 +8,15 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Mcp.Configuration;
 using Jellyfin.Plugin.Mcp.Mcp;
 using Jellyfin.Plugin.Mcp.Tests.Auth;
+using Jellyfin.Plugin.Mcp.Tools;
 using Jellyfin.Plugin.Mcp.Tools.Admin;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Session;
 using MediaBrowser.Model.System;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,6 +34,7 @@ public class AdminViewsTests
     private readonly Mock<ISystemManager> _system = new();
     private readonly Mock<ISessionManager> _sessionManager = new();
     private readonly Mock<ITaskManager> _tasks = new();
+    private readonly Mock<ILibraryManager> _library = new();
     private readonly List<SessionInfo> _sessions = [];
     private readonly McpPrincipal _principal;
 
@@ -71,7 +77,7 @@ public class AdminViewsTests
             Id = id,
             UserId = userId,
             SessionControllers = [controller.Object],
-            PlayState = new MediaBrowser.Model.Session.PlayerStateInfo(),
+            PlayState = new PlayerStateInfo(),
         };
         _sessions.Add(session);
         return session;
@@ -144,7 +150,9 @@ public class AdminViewsTests
         Assert.True(tool.Annotations.Idempotent);
     }
 
-    private IMcpTool[] AdminViews() => [Status()];
+    private ListAllSessionsTool AllSessions() => new(_users.Object, _settings.Object, _sessionManager.Object, new ItemLookup(_library.Object, new Mock<IUserViewManager>().Object));
+
+    private IMcpTool[] AdminViews() => [Status(), AllSessions()];
 
     [Fact]
     public void AdminViews_HiddenWithoutAdminScope()
@@ -156,5 +164,129 @@ public class AdminViewsTests
         Assert.Empty(registry.ListFor(nonAdmin));
         Assert.All(tools, t => Assert.Null(registry.Find(t.Name, nonAdmin)));
         Assert.Equal(tools.Length, registry.ListFor(_principal).Count);
+    }
+
+    private SessionInfo NamedSession(string id, string user, DateTime lastActivity)
+    {
+        var session = AddSession(id, Guid.NewGuid());
+        session.UserName = user;
+        session.DeviceName = "TV " + id;
+        session.Client = "Jellyfin Android TV";
+        session.LastActivityDate = lastActivity;
+        return session;
+    }
+
+    [Fact]
+    public async Task AllSessions_ListsEveryUsersActiveSessions()
+    {
+        NamedSession("old", "alice", new DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc));
+        NamedSession("new", "bob", new DateTime(2026, 11, 7, 12, 0, 0, DateTimeKind.Utc));
+        AddSession("gone", Guid.NewGuid(), active: false);
+        var tool = AllSessions();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(2, doc.RootElement.GetProperty("totalCount").GetInt32());
+        var items = doc.RootElement.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(new[] { "new", "old" }, items.Select(i => i.GetProperty("sessionId").GetString()));
+        Assert.Equal("bob", items[0].GetProperty("userName").GetString());
+        Assert.Equal("TV new", items[0].GetProperty("deviceName").GetString());
+        Assert.Equal("Jellyfin Android TV", items[0].GetProperty("client").GetString());
+        Assert.StartsWith("2026-11-07T12:00:00", items[0].GetProperty("lastActivity").GetString(), StringComparison.Ordinal);
+        Assert.False(items[0].TryGetProperty("nowPlaying", out _));
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task AllSessions_TranscodeDetails()
+    {
+        var session = NamedSession("a", "alice", DateTime.UtcNow);
+        session.PlayState.PlayMethod = PlayMethod.Transcode;
+        session.TranscodingInfo = new TranscodingInfo
+        {
+            VideoCodec = "h264",
+            AudioCodec = "aac",
+            IsVideoDirect = false,
+            IsAudioDirect = true,
+            Bitrate = 4000000,
+            TranscodeReasons = TranscodeReason.AudioCodecNotSupported | TranscodeReason.ContainerNotSupported,
+        };
+        var tool = AllSessions();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var item = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("transcode", item.GetProperty("playMethod").GetString());
+        var transcoding = item.GetProperty("transcoding");
+        Assert.Equal("h264", transcoding.GetProperty("videoCodec").GetString());
+        Assert.False(transcoding.GetProperty("isVideoDirect").GetBoolean());
+        Assert.True(transcoding.GetProperty("isAudioDirect").GetBoolean());
+        Assert.Equal(4000000, transcoding.GetProperty("bitrate").GetInt32());
+        Assert.Equal(new[] { "container_not_supported", "audio_codec_not_supported" }, transcoding.GetProperty("reasons").EnumerateArray().Select(r => r.GetString()));
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task AllSessions_VisibleNowPlaying_ShowsSummary()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Night Signal", ProductionYear = 2019 };
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns(movie);
+        var session = NamedSession("a", "alice", DateTime.UtcNow);
+        session.FullNowPlayingItem = movie;
+        session.PlayState.PositionTicks = 3 * TimeSpan.TicksPerMinute;
+        var tool = AllSessions();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var item = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(2019, item.GetProperty("nowPlaying").GetProperty("year").GetInt32());
+        Assert.Equal(3, item.GetProperty("positionMinutes").GetDouble());
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task AllSessions_InvisibleNowPlaying_ShowsIdAndName()
+    {
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Private", ProductionYear = 2020 };
+        _library.Setup(l => l.GetItemById<BaseItem>(movie.Id, _user)).Returns((BaseItem?)null);
+        var session = NamedSession("a", "alice", DateTime.UtcNow);
+        session.FullNowPlayingItem = movie;
+        session.NowPlayingItem = new BaseItemDto { Id = movie.Id, Name = "Private" };
+        var tool = AllSessions();
+
+        var result = await tool.ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        var nowPlaying = Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray()).GetProperty("nowPlaying");
+        Assert.Equal(movie.Id.ToString("N"), nowPlaying.GetProperty("id").GetString());
+        Assert.Equal("Private", nowPlaying.GetProperty("name").GetString());
+        Assert.False(nowPlaying.TryGetProperty("year", out _));
+        SchemaAssert.Conforms(tool, result);
+    }
+
+    [Fact]
+    public async Task AllSessions_DoesNotExposeRemoteEndPoint()
+    {
+        NamedSession("a", "alice", DateTime.UtcNow).RemoteEndPoint = "10.0.0.5";
+
+        var result = await AllSessions().ExecuteAsync(Args("{}"), _principal, CancellationToken.None);
+
+        Assert.DoesNotContain("10.0.0.5", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AllSessions_Pages()
+    {
+        NamedSession("old", "alice", new DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc));
+        NamedSession("new", "bob", new DateTime(2026, 11, 7, 12, 0, 0, DateTimeKind.Utc));
+
+        var result = await AllSessions().ExecuteAsync(Args("""{"limit":1,"startIndex":1}"""), _principal, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(result.Text);
+        Assert.Equal(2, doc.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal("old", Assert.Single(doc.RootElement.GetProperty("items").EnumerateArray()).GetProperty("sessionId").GetString());
     }
 }

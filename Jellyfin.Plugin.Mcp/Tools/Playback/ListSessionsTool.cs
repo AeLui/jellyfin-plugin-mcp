@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -22,8 +20,7 @@ public sealed class ListSessionsTool : PlaybackToolBase
     private static readonly JsonElement SessionsSchema = OutputSchemas.Object(
         "\"items\":" + OutputSchemas.ArrayOf(OutputSchemas.ObjectJson(
             "\"sessionId\":{\"type\":\"string\"},\"deviceName\":{\"type\":\"string\"},\"client\":{\"type\":\"string\"},"
-                + "\"userName\":{\"type\":\"string\"},\"nowPlaying\":{\"anyOf\":[" + OutputSchemas.ItemSummary + ","
-                + OutputSchemas.ObjectJson("\"id\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"}", "id") + "]},"
+                + "\"userName\":{\"type\":\"string\"},\"nowPlaying\":" + SessionMapper.NowPlayingSchema + ","
                 + "\"isPaused\":{\"type\":\"boolean\"},\"positionMinutes\":{\"type\":\"number\"}",
             "sessionId",
             "isPaused",
@@ -69,32 +66,10 @@ public sealed class ListSessionsTool : PlaybackToolBase
             deviceName = s.DeviceName,
             client = s.Client,
             userName = s.UserName,
-            nowPlaying = NowPlaying(s),
+            nowPlaying = SessionMapper.NowPlaying(s, _ => true),
             isPaused = s.PlayState?.IsPaused ?? false,
             positionMinutes = Math.Round((double)(s.PlayState?.PositionTicks ?? 0) / TimeSpan.TicksPerMinute, 1),
         }).ToList();
         return Task.FromResult(ToolResult.Json(new { items = result }));
-    }
-
-    private static object? NowPlaying(SessionInfo session)
-    {
-        if (session.FullNowPlayingItem is { } item)
-        {
-            return ItemMapper.Summary(item, null);
-        }
-
-        if (session.NowPlayingItem is { } dto)
-        {
-            // Null dictionary values are serialized (WhenWritingNull only covers properties), so a missing name is left out.
-            var playing = new Dictionary<string, object> { ["id"] = dto.Id.ToString("N", CultureInfo.InvariantCulture) };
-            if (dto.Name is not null)
-            {
-                playing["name"] = dto.Name;
-            }
-
-            return playing;
-        }
-
-        return null;
     }
 }
