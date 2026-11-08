@@ -9,6 +9,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.7.0.0",
+        "changelog": "Tokens can be limited to chosen libraries: pick them when creating a token on the settings page. A restricted token only sees items in those libraries (playlists and collections show only their entries from them) and cannot have the admin scope. Existing tokens keep access to every library.",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/AeLui/jellyfin-plugin-mcp/releases/download/v0.7.0/jellyfin-plugin-mcp_0.7.0.0.zip",
+        "checksum": "c63e7cdc5c11d20ce6cfea0f4471c2cd",
+        "timestamp": "2026-11-08T21:49:40Z"
+      },
+      {
         "version": "0.6.0.0",
         "changelog": "MCP prompts: movie_night, catch_me_up, whats_new and library_health (administrators only) show up in clients as slash commands and follow the token's scopes. jellyfin_recently_added items now include dateAdded.",
         "targetAbi": "12.4.0.0",
