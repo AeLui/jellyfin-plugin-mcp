@@ -138,12 +138,17 @@
                     <label for="mcpDlgToken">Token</label>
                     <textarea id="mcpDlgToken" rows="2" readonly="readonly" style="width: 100%;"></textarea>
                     <button id="mcpCopyToken" is="emby-button" type="button" class="raised block emby-button"><span>Copy token</span></button>
-                    <label for="mcpDlgCode">Claude Code</label>
+                    <label for="mcpDlgPlugin">Claude Code plugin (recommended: connects the server and adds the agent skill; run inside Claude Code, it asks for the endpoint URL and the token)</label>
+                    <textarea id="mcpDlgPlugin" rows="2" readonly="readonly" style="width: 100%;">/plugin marketplace add AeLui/jellyfin-plugin-mcp
+/plugin install jellyfin-mcp@jellyfin-plugin-mcp</textarea>
+                    <button id="mcpCopyPlugin" is="emby-button" type="button" class="raised block emby-button"><span>Copy Claude Code plugin commands</span></button>
+                    <label for="mcpDlgCode">Claude Code, server only (no agent skill; do not combine with the plugin, or the tools show up twice)</label>
                     <textarea id="mcpDlgCode" rows="3" readonly="readonly" style="width: 100%;"></textarea>
                     <button id="mcpCopyCode" is="emby-button" type="button" class="raised block emby-button"><span>Copy Claude Code command</span></button>
                     <label for="mcpDlgDesktop">Claude Desktop (claude_desktop_config.json, requires Node.js)</label>
                     <textarea id="mcpDlgDesktop" rows="4" readonly="readonly" style="width: 100%;"></textarea>
                     <button id="mcpCopyDesktop" is="emby-button" type="button" class="raised block emby-button"><span>Copy Claude Desktop config</span></button>
+                    <p>Optional for other assistants: install the <a href="https://github.com/AeLui/jellyfin-plugin-mcp#agent-skill" target="_blank" rel="noopener noreferrer">agent skill</a> so the assistant uses these tools well (getting ids first, picking a playback device, asking before destructive actions).</p>
                     <button id="mcpCloseDialog" is="emby-button" type="button" class="raised button-submit block emby-button"><span>Close</span></button>
                 </dialog>
 

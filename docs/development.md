@@ -69,7 +69,7 @@ docker compose -f docker-compose.dev.yml up -d
 Checklist:
 
 1. The plugin appears as **MCP Server** in Dashboard > Plugins and its page loads.
-2. Create a token for the non-admin test user with `library` and `playback`; the dialog shows both snippets.
+2. Create a token for the non-admin test user with `library` and `playback`; the dialog shows the plugin commands, both snippets and the agent skill link.
 3. `claude mcp add --transport http jellyfin-dev http://localhost:8096/mcp --header "Authorization: Bearer <token>"`; in Claude Code, `/mcp` shows the server connected with 13 tools (9 library + 4 playback).
 4. Ask Claude to search the test library and get an item: results are correct, and an item in a library hidden from that user is not returned (also try its id directly).
 5. Revoke the token in the plugin page; the next call fails with 401.

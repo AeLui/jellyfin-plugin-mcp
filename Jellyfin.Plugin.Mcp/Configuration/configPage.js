@@ -315,6 +315,7 @@ export default function (view) {
     $('mcpTokenUser').addEventListener('change', onUserChange);
     $('mcpCopyUrl').addEventListener('click', () => copyFrom($('mcpEndpointUrl')));
     $('mcpCopyToken').addEventListener('click', () => copyFrom($('mcpDlgToken')));
+    $('mcpCopyPlugin').addEventListener('click', () => copyFrom($('mcpDlgPlugin')));
     $('mcpCopyCode').addEventListener('click', () => copyFrom($('mcpDlgCode')));
     $('mcpCopyDesktop').addEventListener('click', () => copyFrom($('mcpDlgDesktop')));
     $('mcpCloseDialog').addEventListener('click', () => {
