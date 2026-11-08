@@ -1,7 +1,7 @@
 ---
 name: "MCP Server"
 guid: "08dd6fbf-c026-48c9-9405-824c3906df09"
-version: "0.7.0.0"
+version: "1.0.0.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Let AI assistants like Claude search your library, control playback and manage playlists."
@@ -23,7 +23,7 @@ owner: "AeLui"
 artifacts:
 - "Jellyfin.Plugin.Mcp.dll"
 changelog: >
-  Tokens can be limited to chosen libraries: pick them when creating a token
-  on the settings page. A restricted token only sees items in those libraries
-  (playlists and collections show only their entries from them) and cannot
-  have the admin scope. Existing tokens keep access to every library.
+  1.0.0: first stable release, with no changes to tools or result shapes.
+  The token dialog now offers the Claude Code plugin (server plus agent
+  skill) as the recommended setup, warns not to combine it with the
+  server-only command, and links the agent skill for other assistants.
