@@ -1,7 +1,7 @@
 ---
 name: "MCP Server"
 guid: "08dd6fbf-c026-48c9-9405-824c3906df09"
-version: "0.6.0.0"
+version: "0.7.0.0"
 targetAbi: "12.4.0.0"
 framework: "net10.0"
 overview: "Let AI assistants like Claude search your library, control playback and manage playlists."
@@ -14,7 +14,8 @@ description: >
   run scheduled tasks and library scans. 29 tools in four scopes (library,
   playback, manage, admin), plus four ready-made prompts such as movie night
   and what's new. Every access token belongs to one Jellyfin user
-  and only sees what that user can see. Create tokens on the plugin settings
+  and only sees what that user can see, optionally limited
+  to chosen libraries. Create tokens on the plugin settings
   page and connect your assistant to https://your-server/mcp.
 category: "General"
 imageUrl: "https://raw.githubusercontent.com/AeLui/jellyfin-plugin-mcp/main/images/logo.png"
@@ -22,6 +23,7 @@ owner: "AeLui"
 artifacts:
 - "Jellyfin.Plugin.Mcp.dll"
 changelog: >
-  MCP prompts: movie_night, catch_me_up, whats_new and library_health
-  (administrators only) show up in clients as slash commands and follow the
-  token's scopes. jellyfin_recently_added items now include dateAdded.
+  Tokens can be limited to chosen libraries: pick them when creating a token
+  on the settings page. A restricted token only sees items in those libraries
+  (playlists and collections show only their entries from them) and cannot
+  have the admin scope. Existing tokens keep access to every library.
