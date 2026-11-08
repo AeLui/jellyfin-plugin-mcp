@@ -162,15 +162,13 @@ export default function (view) {
             container.className = 'checkboxContainer';
             const label = document.createElement('label');
             label.className = 'emby-checkbox-label';
-            const box = document.createElement('input', { is: 'emby-checkbox' });
-            box.setAttribute('is', 'emby-checkbox');
-            box.type = 'checkbox';
+            // Static markup only: Jellyfin wraps document.createElement and rejects the options argument,
+            // so the emby-checkbox is created by the parser and upgraded when it is attached.
+            label.innerHTML = '<input type="checkbox" is="emby-checkbox" /><span class="checkboxLabel"></span>';
+            const box = label.querySelector('input');
             box.dataset.library = library.Id;
             box.addEventListener('change', updateAdminScope);
-            const text = document.createElement('span');
-            text.textContent = library.CollectionType ? library.Name + ' (' + library.CollectionType + ')' : library.Name;
-            label.appendChild(box);
-            label.appendChild(text);
+            label.querySelector('span').textContent = library.CollectionType ? library.Name + ' (' + library.CollectionType + ')' : library.Name;
             container.appendChild(label);
             list.appendChild(container);
         });
