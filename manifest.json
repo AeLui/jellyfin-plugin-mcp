@@ -9,6 +9,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.0.0",
+        "changelog": "1.0.0: first stable release, with no changes to tools or result shapes. The token dialog now offers the Claude Code plugin (server plus agent skill) as the recommended setup, warns not to combine it with the server-only command, and links the agent skill for other assistants.",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/AeLui/jellyfin-plugin-mcp/releases/download/v1.0.0/jellyfin-plugin-mcp_1.0.0.0.zip",
+        "checksum": "95820ab99559acbd0a0c31485f889cb6",
+        "timestamp": "2026-11-09T10:53:44Z"
+      },
+      {
         "version": "0.7.0.0",
         "changelog": "Tokens can be limited to chosen libraries: pick them when creating a token on the settings page. A restricted token only sees items in those libraries (playlists and collections show only their entries from them) and cannot have the admin scope. Existing tokens keep access to every library.",
         "targetAbi": "12.4.0.0",
